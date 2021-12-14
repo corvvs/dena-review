@@ -19,12 +19,12 @@
         | Current Player:
         br
         span.player(
-          :class="game.player"
-        ) {{ game.player }}
+          :gameData.game="gameData.game.player"
+        ) {{ gameData.game.player }}
       .game-logs
         .logitem(
-          v-for="log in gameLogs"
-          :class="log.player_id === game.player_id_you ? 'You' : log.player_id === game.player_id_opponent ? 'Opponent' : '' "
+          v-for="log in gameData.logs"
+          :class="log.player_id === gameData.game.player_id_you ? 'You' : log.player_id === gameData.game.player_id_opponent ? 'Opponent' : '' "
         )
           .action {{ log.action }}
           .at(
@@ -34,36 +34,39 @@
 
 
     .board
-      svg(
-        :transform="geo.transform"  
-        :viewBox="geo.viewBox.value"
-        :width="geo.width"
-        :height="geo.height"
-      )
-        template(
-          v-for="(row, i) in geo.cellPlacements.value"
+      .svg
+        svg(
+          :transform="geo.transform"  
+          :viewBox="geo.viewBox.value"
+          :width="geo.width"
+          :height="geo.height"
         )
-          g(
-            v-for="(placement, j) in row"
-            :transform="`translate(${placement.x}, ${placement.y})`"
+          template(
+            v-for="(row, i) in geo.cellPlacements.value"
           )
-            rect.cell(
-              :x="placement.rx"
-              :y="placement.ry"
-              :width="placement.width"
-              :height="placement.height"
-              stroke="gray"
-              fill="white"
-              :class="geo.cellClasses.value[i][j]"
-              @click="handlers.clickCell(i, j)"
+            g(
+              v-for="(placement, j) in row"
+              :transform="`translate(${placement.x}, ${placement.y})`"
             )
-            text(
-              :transform="geo.transform"  
-              :x="text_geo.textPlacements.value[i][j].dx"
-              :y="text_geo.textPlacements.value[i][j].dy"
-              :font-size="text_geo.textPlacements.value[i][j].fontSize"
-              v-if="text_geo.textVisibility.value[i][j]"
-            ) {{ longestLineLength.value[i][j] }}
+              rect.cell(
+                :x="placement.rx"
+                :y="placement.ry"
+                :width="placement.width"
+                :height="placement.height"
+                stroke="gray"
+                fill="white"
+                :class="geo.cellClasses.value[i][j]"
+                @click="handlers.clickCell(i, j)"
+              )
+              text(
+                :transform="geo.transform"  
+                :x="text_geo.textPlacements.value[i][j].dx"
+                :y="text_geo.textPlacements.value[i][j].dy"
+                :font-size="text_geo.textPlacements.value[i][j].fontSize"
+                v-if="text_geo.textVisibility.value[i][j]"
+              ) {{ longestLineLength.value[i][j] }}
+      .panel
+        
 </template>
 
 <script lang="ts">
@@ -74,8 +77,18 @@ import { Game } from '../model/game'
 export default defineComponent({
   setup(prop: {
   }, context: SetupContext) {
-    const game: Game.Game = reactive(Game.initGame());
-    const gameLogs: Game.Log[] = reactive([]);
+
+    const initGameData = () => {
+      return {
+        game: reactive(Game.initGame()),
+        logs: reactive([]),
+      };
+    };
+
+    const gameData: {
+      game: Game.Game;
+      logs: Game.Log[];
+    } = initGameData();
 
     const cellSize = 80;
     const span = 8;
@@ -106,8 +119,8 @@ export default defineComponent({
     const cellOccupations = computed(() => {
       return _.range(Game.Row).map((i) => {
         return _.range(Game.Col).map((j) => {
-          if (i < game.board[j].length) {
-            return game.board[j][i];
+          if (i < gameData.game.board[j].length) {
+            return gameData.game.board[j][i];
           }
           return "empty";
         });
@@ -123,7 +136,7 @@ export default defineComponent({
       return _.range(Game.Row).map((i) => {
         return _.range(Game.Col).map((j) => {
           if (judge.winner.value) { return false; }
-          return game.board[j].length == i;
+          return gameData.game.board[j].length == i;
         });
       });
     });
@@ -198,7 +211,7 @@ export default defineComponent({
      * (当該セルが本当に自分の色であり、かつこの値が4以上の場合、ゲームに勝利していることになる)
      */
     const longestLineLength = computed(() => {
-      const playerFor = game.player;
+      const playerFor = gameData.game.player;
       return playerFor === "You" ? longestLineLengthYou : longestLineLengthOpponent;
     });
 
@@ -232,19 +245,27 @@ export default defineComponent({
 
     const controller = {
       /**
+       * ゲームを初期化する
+       */
+      initializeGame: function() {
+        const gd = initGameData();
+        gameData.game = gd.game;
+        gameData.logs = gd.logs;
+      },
+      /**
        * ターンを進める
        */
       proceedTurn: function() {
-        if (game.player === "You" && willYouWon.value) {
-          gameLogs.unshift({
+        if (gameData.game.player === "You" && willYouWon.value) {
+          gameData.logs.unshift({
             action: "Defeat",
-            player_id: game.player_id_you,
+            player_id: gameData.game.player_id_you,
             time: new Date(),
           });
-        } else if (game.player === "Opponent" && willOpponentWon.value) {
-          gameLogs.unshift({
+        } else if (gameData.game.player === "Opponent" && willOpponentWon.value) {
+          gameData.logs.unshift({
             action: "Defeat",
-            player_id: game.player_id_opponent,
+            player_id: gameData.game.player_id_opponent,
             time: new Date(),
           });
         } else {
@@ -257,11 +278,11 @@ export default defineComponent({
       placePiece: function(i: number, j: number) {
         if (!(0 <= i && i < Game.Row)) { return; }
         if (!(0 <= j && j < Game.Col)) { return; }
-        if (Game.Row <= game.board[j].length) { return; }
-        game.board[j].push(game.player);
-        gameLogs.unshift({
+        if (Game.Row <= gameData.game.board[j].length) { return; }
+        gameData.game.board[j].push(gameData.game.player);
+        gameData.logs.unshift({
           action: "Place",
-          player_id: game.player === "You" ? game.player_id_you : game.player_id_opponent,
+          player_id: gameData.game.player === "You" ? gameData.game.player_id_you : gameData.game.player_id_opponent,
           i, j,
           time: new Date(),
         });
@@ -271,10 +292,10 @@ export default defineComponent({
        * プレイヤーを交代する
        */
       flipPlayer: function() {
-        if (game.player === "You") {
-          game.player = "Opponent";
-        } else if (game.player === "Opponent") {
-          game.player = "You";
+        if (gameData.game.player === "You") {
+          gameData.game.player = "Opponent";
+        } else if (gameData.game.player === "Opponent") {
+          gameData.game.player = "You";
         }
       },
     };
@@ -288,10 +309,9 @@ export default defineComponent({
       },
     };
 
-    Game.startGame(gameLogs);
+    Game.startGame(gameData.logs);
     return {
-      game,
-      gameLogs,
+      gameData,
       geo,
       text_geo,
       handlers,
@@ -304,12 +324,15 @@ export default defineComponent({
 </script>
 
 <style lang="stylus" scoped>
+FrameBorderColor = #888
+FrameBorder = 1px solid FrameBorderColor
+ColorYou = royalblue
+ColorOpponent = orange
+
 .game
   height 100%
   display flex
   flex-direction column
-  FrameBorderColor = #888
-  FrameBorder = 1px solid FrameBorderColor
 
   .header
     flex-grow 0
@@ -348,9 +371,9 @@ export default defineComponent({
         flex-direction column
         justify-content center
         &.You
-          color royalblue
+          color ColorYou
         &.Opponent
-          color orange
+          color ColorOpponent
         .action
           font-weight bold
         &:hover
@@ -374,14 +397,14 @@ export default defineComponent({
           fill lightgreen
 
       &.You
-        fill royalblue
+        fill ColorYou
       &.Opponent
-        fill orange
+        fill ColorOpponent
 
   .player
     font-weight bold
     &.You
-      color royalblue
+      color ColorYou
     &.Opponent
-      color orange
+      color ColorOpponent
 </style>
