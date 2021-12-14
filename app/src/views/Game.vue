@@ -12,20 +12,31 @@
       template(
         v-for="(row, i) in geo.cellPlacements.value"
       )
-        rect.cell(
+        g(
           v-for="(placement, j) in row"
-          :x="placement.x"
-          :y="placement.y"
-          :width="placement.width"
-          :height="placement.height"
-          stroke="gray"
-          fill="white"
-          :class="geo.cellClasses.value[i][j]"
-          @click="handlers.clickCell(i, j)"
+          :transform="`translate(${placement.x}, ${placement.y})`"
         )
+          rect.cell(
+            :x="placement.rx"
+            :y="placement.ry"
+            :width="placement.width"
+            :height="placement.height"
+            stroke="gray"
+            fill="white"
+            :class="geo.cellClasses.value[i][j]"
+            @click="handlers.clickCell(i, j)"
+          )
+          text(
+            :transform="geo.transform"  
+            :x="text_geo.textPlacements.value[i][j].dx"
+            :y="text_geo.textPlacements.value[i][j].dy"
+            :font-size="text_geo.textPlacements.value[i][j].fontSize"
+            v-if="text_geo.textVisibility.value[i][j]"
+          ) {{ longestLineLength[i][j] }}
   .info
     h4 info
     | current player: {{ game.player }}
+    | {{ longestLineLength }}
 </template>
 
 <script lang="ts">
@@ -50,8 +61,10 @@ export default defineComponent({
       return _.range(Game.Row).map((i) => {
         return _.range(Game.Col).map((j) => {
           return {
-            x: span + cellSize * j,
-            y: span + cellSize * i,
+            x: span + cellSize * (j + 0.5),
+            y: span + cellSize * (i + 0.5),
+            rx: -cellSize / 2,
+            ry: -cellSize / 2,
             width: cellSize,
             height: cellSize,
           };
@@ -100,6 +113,57 @@ export default defineComponent({
       });
     });
 
+    /**
+     * テキストの配置
+     */
+    const textPlacements = computed(() => {
+      return _.range(Game.Row).map((i) => {
+        return _.range(Game.Col).map((j) => {
+          const fontSize = 36;
+          return {
+            dx: -fontSize / 2,
+            dy: fontSize / 2,
+            fontSize,
+          };
+        });
+      });
+    });
+
+    /**
+     * テキストの表示・非表示
+     */
+    const textVisibility = computed(() => {
+      return _.range(Game.Row).map((i) => {
+        return _.range(Game.Col).map((j) => {
+          return placabilities.value[i][j];
+        });
+      });
+    });
+
+
+    /**
+     * フルサイズに拡張したgame.board
+     * 空きマスにはemptyが置かれている。
+     */
+    const extendedBoard = computed(() => {
+      return _.range(Game.Row).map((i) => {
+        return _.range(Game.Col).map((j) => {
+          const occupation = cellOccupations.value[i][j];
+          return occupation;
+        });
+      });
+    });
+
+    /**
+     * 当該セルが敵の色の場合は0,
+     * そうでない場合、当該セルが自分の色だと仮定した時の、最大の連続並びの長さ
+     * (当該セルが本当に自分の色であり、かつこの値が4以上の場合、ゲームに勝利していることになる)
+     */
+    const longestLineLength = computed(() => {
+      const exBoard = extendedBoard.value;
+      const playerFor = game.player;
+      return Game.longestLineLengths(exBoard, playerFor);
+    });
 
     const geo = {
       transform: "scale(1 -1)",
@@ -114,6 +178,11 @@ export default defineComponent({
       cellOccupations,
       placabilities,
       cellClasses,
+    };
+
+    const text_geo = {
+      textPlacements,
+      textVisibility,
     };
 
     const controller = {
@@ -142,7 +211,6 @@ export default defineComponent({
       clickCell: (i: number, j: number) => {
         if (0 <= i && i < Game.Row && 0 <= j && j < Game.Col) {
           if (!geo.placabilities.value[i][j]) { return; }
-          console.log(i, j);
           controller.placePiece(j);
         }
       },
@@ -151,7 +219,9 @@ export default defineComponent({
     return {
       game,
       geo,
+      text_geo,
       handlers,
+      longestLineLength,
     };
   },
 });
@@ -163,23 +233,28 @@ export default defineComponent({
   height 100%
   display flex
   flex-direction column
+
   .board
     flex-grow 0
     flex-shrink 0
     svg
       border 1px solid #888
+      text
+        pointer-events none
+        fill #888
+    .cell
+      &.placable
+        fill #ddf
+        &:hover
+          cursor pointer
+          fill lightgreen
+
+      &.You
+        fill royalblue
+      &.Opponent
+        fill orange
+
   .info
     flex-grow 1
     flex-shrink 1
-  .cell
-    &.placable
-      fill #ddf
-      &:hover
-        cursor pointer
-        fill lightgreen
-
-    &.You
-      fill royalblue
-    &.Opponent
-      fill orange
 </style>
