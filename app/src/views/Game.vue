@@ -31,74 +31,74 @@
 <script lang="ts">
 import _, { flip } from 'lodash';
 import { reactive, ref, Ref, SetupContext, defineComponent, onMounted, PropType, watch, computed } from '@vue/composition-api';
-import { Game } from '@/model/game'
+import { Game } from '../model/game'
 
 export default defineComponent({
   setup(prop: {
   }, context: SetupContext) {
-    const game = reactive(Game.initGame());
+    const game: Game.Game = reactive(Game.initGame());
 
     const cellSize = 80;
     const span = 8;
     const width = cellSize * Game.Col + span * 2;
     const height = cellSize * Game.Row + span * 2;
 
-      /**
-       * セルの配置
-       */
-      const cellPlacements = computed(() => {
-        return _.range(Game.Row).map((i) => {
-          return _.range(Game.Col).map((j) => {
-            return {
-              x: span + cellSize * j,
-              y: span + cellSize * i,
-              width: cellSize,
-              height: cellSize,
-            };
-          });
+    /**
+     * セルの配置
+     */
+    const cellPlacements = computed(() => {
+      return _.range(Game.Row).map((i) => {
+        return _.range(Game.Col).map((j) => {
+          return {
+            x: span + cellSize * j,
+            y: span + cellSize * i,
+            width: cellSize,
+            height: cellSize,
+          };
         });
       });
+    });
 
-      /**
-       * セルの状態
-       */
-      const cellOccupations = computed(() => {
-        return _.range(Game.Row).map((i) => {
-          return _.range(Game.Col).map((j) => {
-            if (i < game.board[j].length) {
-              return game.board[j][i];
-            }
-            return "empty";
-          });
+    /**
+     * セルの状態
+     */
+    const cellOccupations = computed(() => {
+      return _.range(Game.Row).map((i) => {
+        return _.range(Game.Col).map((j) => {
+          if (i < game.board[j].length) {
+            return game.board[j][i];
+          }
+          return "empty";
         });
       });
-      /**
-       * 今そのセルに置けるかどうか
-       */
-      const placabilities = computed(() => {
-        // セル(i, j)に置けるかどうかの判定
-        // 1. 自分の手番でない -> NO
-        // 2. game.board[j].length != i -> NO
-        return _.range(Game.Row).map((i) => {
-          return _.range(Game.Col).map((j) => {
-            return game.board[j].length == i;
-          });
+    });
+    /**
+     * 今そのセルに置けるかどうか
+     */
+    const placabilities = computed(() => {
+      // セル(i, j)に置けるかどうかの判定
+      // 1. 自分の手番でない -> NO
+      // 2. game.board[j].length != i -> NO
+      return _.range(Game.Row).map((i) => {
+        return _.range(Game.Col).map((j) => {
+          return game.board[j].length == i;
         });
       });
+    });
 
-      const cellClasses = computed(() => {
-        return _.range(Game.Row).map((i) => {
-          return _.range(Game.Col).map((j) => {
-            const occupation = cellOccupations.value[i][j];
-            const r: any = {
-              "placable": placabilities.value[i][j],
-              "non-placable": !placabilities.value[i][j],
-            };
-            r[occupation] = true;
-            return r;
-          });
+    const cellClasses = computed(() => {
+      return _.range(Game.Row).map((i) => {
+        return _.range(Game.Col).map((j) => {
+          const occupation = cellOccupations.value[i][j];
+          const r: any = {
+            "placable": placabilities.value[i][j],
+            "non-placable": !placabilities.value[i][j],
+          };
+          r[occupation] = true;
+          return r;
         });
       });
+    });
 
 
     const geo = {
@@ -117,19 +117,25 @@ export default defineComponent({
     };
 
     const controller = {
-      place: function(j: number) {
+      /**
+       * コマを置く
+       */
+      placePiece: function(j: number) {
         if (!(0 <= j && j < Game.Col)) { return; }
         if (Game.Row <= game.board[j].length) { return; }
         game.board[j].push(game.player);
-        this.flip();
+        this.flipPlayer();
       },
-      flip: function() {
+      /**
+       * プレイヤーを交代する
+       */
+      flipPlayer: function() {
         if (game.player === "You") {
           game.player = "Opponent";
         } else if (game.player === "Opponent") {
           game.player = "You";
         }
-      }
+      },
     };
 
     const handlers = {
@@ -137,7 +143,7 @@ export default defineComponent({
         if (0 <= i && i < Game.Row && 0 <= j && j < Game.Col) {
           if (!geo.placabilities.value[i][j]) { return; }
           console.log(i, j);
-          controller.place(j);
+          controller.placePiece(j);
         }
       },
     };
@@ -167,7 +173,7 @@ export default defineComponent({
     flex-shrink 1
   .cell
     &.placable
-      fill lightblue
+      fill #ddf
       &:hover
         cursor pointer
         fill lightgreen
