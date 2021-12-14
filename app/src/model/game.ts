@@ -11,6 +11,7 @@ export namespace Game {
     "GameStart" | // ゲーム開始
     "Place" | // 手
     "Resign" | // 投了
+    "Draw" | // 引き分け
     "Defeat"; // 勝利
 
   type Board = Player[][];

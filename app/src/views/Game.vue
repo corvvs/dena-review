@@ -3,7 +3,6 @@
   .header
     h3 MokuMokuMokuMoku
   .body
-
     .info
       .winner(
         v-if="judge.winner.value"
@@ -113,10 +112,17 @@ export default defineComponent({
 
     const willYouWon = computed(() => Game.verdictWon(extendedBoard.value, longestLineLengthYou.value));
     const willOpponentWon = computed(() => Game.verdictWon(extendedBoard.value, longestLineLengthOpponent.value));
+    const noVacant = computed(() => !extendedBoard.value.find((row) => row.find((p) => p === "empty")));
     const judge = {
       willYouWon,
       willOpponentWon,
-      winner: computed(() => willYouWon.value ? "You" : willOpponentWon.value ? "Opponent" : null),
+      noVacant,
+      winner: computed(() => {
+        if (willYouWon.value) { return "You"; }
+        if (willOpponentWon.value) { return "Opponent"; }
+        if (noVacant.value) { return "Draw"; }
+        return null;
+      }),
     };
 
     const controller = {
@@ -142,6 +148,11 @@ export default defineComponent({
           gameData.logs.unshift({
             action: "Defeat",
             player_id: gameData.game.player_id_opponent,
+            time: new Date(),
+          });
+        } else if (judge.winner.value === "Draw") {
+          gameData.logs.unshift({
+            action: "Draw",
             time: new Date(),
           });
         } else {
