@@ -1,13 +1,39 @@
 import _ from 'lodash';
-
+import { v4 } from 'uuid';
 
 export namespace Game {
   export const Row = 6;
   export const Col = 7;
   
   export type Player = "You" | "Opponent";
+  export type Action =
+    "GameStart" | // ゲーム開始
+    "Place" | // 手
+    "Resign" | // 投了
+    "Defeat"; // 勝利
+
+  export type Log = {
+    time: Date;
+    action: Action;
+    player_id?: string;
+    i?: number;
+    j?: number;
+  };
   
   export type Game = {
+    /**
+     * マッチID
+     */
+    match_id: string;
+    /**
+     * あなたのプレイヤーID
+     */
+    player_id_you: string;
+    /**
+      * 相手のプレイヤーID
+      */
+    player_id_opponent: string;
+
     /**
      * 盤面 列 -> 行
      */
@@ -20,9 +46,19 @@ export namespace Game {
 
   export function initGame(): Game {
     return {
+      match_id: v4(),
+      player_id_you: v4(),
+      player_id_opponent: v4(),
       board: _.range(Col).map(() => []),
       player: "You",
     };
+  }
+
+  export function startGame(gameLogs: Log[]) {
+    gameLogs.unshift({
+      action: "GameStart",
+      time: new Date(),
+    });
   }
 
   export function counterPlayer(player: Player): Player {

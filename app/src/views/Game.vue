@@ -1,42 +1,59 @@
 <template lang="pug">
 .game
-  h3 game
-  .board
-    h4 board
-    svg(
-      :transform="geo.transform"  
-      :viewBox="geo.viewBox.value"
-      :width="geo.width"
-      :height="geo.height"
-    )
-      template(
-        v-for="(row, i) in geo.cellPlacements.value"
-      )
-        g(
-          v-for="(placement, j) in row"
-          :transform="`translate(${placement.x}, ${placement.y})`"
+  .header
+  h3 MokuMokuMokuMoku
+  .body
+
+    .info
+      .current-player
+        | Current Player:
+        br
+        span.player(
+          :class="game.player"
+        ) {{ game.player }}
+      .game-logs
+        .logitem(
+          v-for="log in gameLogs"
+          :class="log.player_id === game.player_id_you ? 'You' : log.player_id === game.player_id_opponent ? 'Opponent' : '' "
         )
-          rect.cell(
-            :x="placement.rx"
-            :y="placement.ry"
-            :width="placement.width"
-            :height="placement.height"
-            stroke="gray"
-            fill="white"
-            :class="geo.cellClasses.value[i][j]"
-            @click="handlers.clickCell(i, j)"
+          .action {{ log.action }}
+          .at(
+            v-if="log.action === 'Place'"
+          ) at ({{ log.i }}, {{ log.j }})
+
+
+
+    .board
+      svg(
+        :transform="geo.transform"  
+        :viewBox="geo.viewBox.value"
+        :width="geo.width"
+        :height="geo.height"
+      )
+        template(
+          v-for="(row, i) in geo.cellPlacements.value"
+        )
+          g(
+            v-for="(placement, j) in row"
+            :transform="`translate(${placement.x}, ${placement.y})`"
           )
-          text(
-            :transform="geo.transform"  
-            :x="text_geo.textPlacements.value[i][j].dx"
-            :y="text_geo.textPlacements.value[i][j].dy"
-            :font-size="text_geo.textPlacements.value[i][j].fontSize"
-            v-if="text_geo.textVisibility.value[i][j]"
-          ) {{ longestLineLength[i][j] }}
-  .info
-    h4 info
-    | current player: {{ game.player }}
-    | {{ longestLineLength }}
+            rect.cell(
+              :x="placement.rx"
+              :y="placement.ry"
+              :width="placement.width"
+              :height="placement.height"
+              stroke="gray"
+              fill="white"
+              :class="geo.cellClasses.value[i][j]"
+              @click="handlers.clickCell(i, j)"
+            )
+            text(
+              :transform="geo.transform"  
+              :x="text_geo.textPlacements.value[i][j].dx"
+              :y="text_geo.textPlacements.value[i][j].dy"
+              :font-size="text_geo.textPlacements.value[i][j].fontSize"
+              v-if="text_geo.textVisibility.value[i][j]"
+            ) {{ longestLineLength[i][j] }}
 </template>
 
 <script lang="ts">
@@ -48,6 +65,7 @@ export default defineComponent({
   setup(prop: {
   }, context: SetupContext) {
     const game: Game.Game = reactive(Game.initGame());
+    const gameLogs: Game.Log[] = reactive([]);
 
     const cellSize = 80;
     const span = 8;
@@ -189,10 +207,17 @@ export default defineComponent({
       /**
        * コマを置く
        */
-      placePiece: function(j: number) {
+      placePiece: function(i: number, j: number) {
+        if (!(0 <= i && i < Game.Row)) { return; }
         if (!(0 <= j && j < Game.Col)) { return; }
         if (Game.Row <= game.board[j].length) { return; }
         game.board[j].push(game.player);
+        gameLogs.unshift({
+          action: "Place",
+          player_id: game.player === "You" ? game.player_id_you : game.player_id_opponent,
+          i, j,
+          time: new Date(),
+        });
         this.flipPlayer();
       },
       /**
@@ -211,13 +236,15 @@ export default defineComponent({
       clickCell: (i: number, j: number) => {
         if (0 <= i && i < Game.Row && 0 <= j && j < Game.Col) {
           if (!geo.placabilities.value[i][j]) { return; }
-          controller.placePiece(j);
+          controller.placePiece(i, j);
         }
       },
     };
 
+    Game.startGame(gameLogs);
     return {
       game,
+      gameLogs,
       geo,
       text_geo,
       handlers,
@@ -233,10 +260,55 @@ export default defineComponent({
   height 100%
   display flex
   flex-direction column
+  FrameBorderColor = #888
+  FrameBorder = 1px solid FrameBorderColor
 
-  .board
+  .header
     flex-grow 0
     flex-shrink 0
+  .body
+    flex-grow 1
+    flex-shrink 1
+    display flex
+    flex-direction row
+    border-top FrameBorder
+    border-bottom FrameBorder
+    height 100%
+
+  .info
+    height 100%
+    flex-grow 0
+    flex-shrink 0
+    flex-basis 200px
+    border-right FrameBorder
+    display flex
+    flex-direction column
+
+    .current-player
+      flex-grow 0
+      flex-shrink 0
+    .game-logs
+      border-top FrameBorder
+      flex-grow 1
+      flex-shrink 1
+      overflow-y scroll
+
+      .logitem
+        padding 2px
+        &.You
+          color royalblue
+        &.Opponent
+          color orange
+        .action
+          font-weight bold
+        &:hover
+          background-color #dfd
+
+  
+  .board
+    flex-grow 1
+    flex-shrink 1
+    padding 40px
     svg
       border 1px solid #888
       text
@@ -254,7 +326,10 @@ export default defineComponent({
       &.Opponent
         fill orange
 
-  .info
-    flex-grow 1
-    flex-shrink 1
+  .player
+    font-weight bold
+    &.You
+      color royalblue
+    &.Opponent
+      color orange
 </style>
