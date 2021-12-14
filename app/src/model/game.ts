@@ -4,6 +4,7 @@ import { v4 } from 'uuid';
 export namespace Game {
   export const Row = 6;
   export const Col = 7;
+  export const WinLength = 4; // 何目並べなのか？
   
   export type Player = "You" | "Opponent";
   export type Action =
@@ -11,6 +12,9 @@ export namespace Game {
     "Place" | // 手
     "Resign" | // 投了
     "Defeat"; // 勝利
+
+  type Board = Player[][];
+  type ExtendedBoard = (Player | "empty")[][];
 
   export type Log = {
     time: Date;
@@ -134,6 +138,12 @@ export namespace Game {
         ) + 1;
       });
     });
+  }
+
+  export function verdictWon(extendedBoard: ExtendedBoard, lineLengths: number[][]) {
+    return _.find(lineLengths, (row, i) => _.find(row, (n, j) => {
+      return extendedBoard[i][j] !== "empty" && n >= WinLength;
+    }));
   }
 };
 

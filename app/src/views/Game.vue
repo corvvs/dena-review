@@ -5,7 +5,17 @@
   .body
 
     .info
-      .current-player
+      .winner(
+        v-if="judge.winner.value"
+      )
+        | Winner:
+        br
+        span.player(
+          :class="judge.winner.value"
+        ) {{ judge.winner.value }}
+      .current-player(
+        v-else
+      )
         | Current Player:
         br
         span.player(
@@ -53,7 +63,7 @@
               :y="text_geo.textPlacements.value[i][j].dy"
               :font-size="text_geo.textPlacements.value[i][j].fontSize"
               v-if="text_geo.textVisibility.value[i][j]"
-            ) {{ longestLineLength[i][j] }}
+            ) {{ longestLineLength.value[i][j] }}
 </template>
 
 <script lang="ts">
@@ -112,6 +122,7 @@ export default defineComponent({
       // 2. game.board[j].length != i -> NO
       return _.range(Game.Row).map((i) => {
         return _.range(Game.Col).map((j) => {
+          if (judge.winner.value) { return false; }
           return game.board[j].length == i;
         });
       });
@@ -172,15 +183,23 @@ export default defineComponent({
       });
     });
 
+    const longestLineLengthYou = computed(() => {
+      const exBoard = extendedBoard.value;
+      return Game.longestLineLengths(exBoard, "You");
+    });
+    const longestLineLengthOpponent = computed(() => {
+      const exBoard = extendedBoard.value;
+      return Game.longestLineLengths(exBoard, "Opponent");
+    });
+
     /**
      * 当該セルが敵の色の場合は0,
      * そうでない場合、当該セルが自分の色だと仮定した時の、最大の連続並びの長さ
      * (当該セルが本当に自分の色であり、かつこの値が4以上の場合、ゲームに勝利していることになる)
      */
     const longestLineLength = computed(() => {
-      const exBoard = extendedBoard.value;
       const playerFor = game.player;
-      return Game.longestLineLengths(exBoard, playerFor);
+      return playerFor === "You" ? longestLineLengthYou : longestLineLengthOpponent;
     });
 
     const geo = {
@@ -203,7 +222,35 @@ export default defineComponent({
       textVisibility,
     };
 
+    const willYouWon = computed(() => Game.verdictWon(extendedBoard.value, longestLineLengthYou.value));
+    const willOpponentWon = computed(() => Game.verdictWon(extendedBoard.value, longestLineLengthOpponent.value));
+    const judge = {
+      willYouWon,
+      willOpponentWon,
+      winner: computed(() => willYouWon.value ? "You" : willOpponentWon.value ? "Opponent" : null),
+    };
+
     const controller = {
+      /**
+       * ターンを進める
+       */
+      proceedTurn: function() {
+        if (game.player === "You" && willYouWon.value) {
+          gameLogs.unshift({
+            action: "Defeat",
+            player_id: game.player_id_you,
+            time: new Date(),
+          });
+        } else if (game.player === "Opponent" && willOpponentWon.value) {
+          gameLogs.unshift({
+            action: "Defeat",
+            player_id: game.player_id_opponent,
+            time: new Date(),
+          });
+        } else {
+          this.flipPlayer();
+        }
+      },
       /**
        * コマを置く
        */
@@ -218,7 +265,7 @@ export default defineComponent({
           i, j,
           time: new Date(),
         });
-        this.flipPlayer();
+        this.proceedTurn();
       },
       /**
        * プレイヤーを交代する
@@ -249,6 +296,7 @@ export default defineComponent({
       text_geo,
       handlers,
       longestLineLength,
+      judge,
     };
   },
 });
@@ -295,6 +343,10 @@ export default defineComponent({
 
       .logitem
         padding 2px
+        height 50px
+        display flex
+        flex-direction column
+        justify-content center
         &.You
           color royalblue
         &.Opponent
