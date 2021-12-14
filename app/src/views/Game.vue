@@ -22,16 +22,11 @@
           :gameData.game="gameData.game.player"
         ) {{ gameData.game.player }}
       .game-logs
-        .logitem(
+        LogItem.logitem(
           v-for="log in gameData.logs"
-          :class="log.player_id === gameData.game.player_id_you ? 'You' : log.player_id === gameData.game.player_id_opponent ? 'Opponent' : '' "
+          :game="gameData.game"
+          :log="log"
         )
-          .action {{ log.action }}
-          .at(
-            v-if="log.action === 'Place'"
-          ) at ({{ log.i }}, {{ log.j }})
-
-
 
     .board
       .svg
@@ -70,11 +65,16 @@
 </template>
 
 <script lang="ts">
-import _, { flip } from 'lodash';
+import _ from 'lodash';
 import { reactive, ref, Ref, SetupContext, defineComponent, onMounted, PropType, watch, computed } from '@vue/composition-api';
 import { Game } from '../model/game'
+import LogItem from '../components/LogItem.vue'
 
 export default defineComponent({
+  components: {
+    LogItem,
+  },
+
   setup(prop: {
   }, context: SetupContext) {
 
@@ -363,21 +363,6 @@ ColorOpponent = orange
       flex-grow 1
       flex-shrink 1
       overflow-y scroll
-
-      .logitem
-        padding 2px
-        height 50px
-        display flex
-        flex-direction column
-        justify-content center
-        &.You
-          color ColorYou
-        &.Opponent
-          color ColorOpponent
-        .action
-          font-weight bold
-        &:hover
-          background-color #dfd
 
   
   .board
