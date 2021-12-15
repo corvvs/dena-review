@@ -1,34 +1,36 @@
 <template lang="pug">
-svg.board(
-  :transform="geo.transform"
-  :viewBox="geo.viewBox.value"
-  :width="geo.width"
-  :height="geo.height"
-)
-  template(
-    v-for="(row, i) in geo.cellPlacements.value"
-  )
-    g(
-      v-for="(placement, j) in row"
-      :transform="`translate(${placement.x}, ${placement.y})`"
+.board
+  .svg
+    svg(
+      :transform="geo.transform"
+      :viewBox="geo.viewBox.value"
+      :width="geo.width"
+      :height="geo.height"
     )
-      rect.cell(
-        :x="placement.rx"
-        :y="placement.ry"
-        :width="placement.width"
-        :height="placement.height"
-        stroke="gray"
-        fill="white"
-        :class="geo.cellClasses.value[i][j]"
-        @click="handlers.clickCell(i, j)"
+      template(
+        v-for="(row, i) in geo.cellPlacements.value"
       )
-      text(
-        :transform="geo.transform"  
-        :x="text_geo.textPlacements.value[i][j].dx"
-        :y="text_geo.textPlacements.value[i][j].dy"
-        :font-size="text_geo.textPlacements.value[i][j].fontSize"
-        v-if="text_geo.textVisibility.value[i][j]"
-      ) {{ longestLineLength[i][j] }}
+        g(
+          v-for="(placement, j) in row"
+          :transform="`translate(${placement.x}, ${placement.y})`"
+        )
+          rect.cell(
+            :x="placement.rx"
+            :y="placement.ry"
+            :width="placement.width"
+            :height="placement.height"
+            stroke="gray"
+            fill="white"
+            :class="geo.cellClasses.value[i][j]"
+            @click="handlers.clickCell(i, j)"
+          )
+          text(
+            :transform="geo.transform"  
+            :x="text_geo.textPlacements.value[i][j].dx"
+            :y="text_geo.textPlacements.value[i][j].dy"
+            :font-size="text_geo.textPlacements.value[i][j].fontSize"
+            v-if="text_geo.textVisibility.value[i][j]"
+          ) {{ longestLineLength[i][j] }}
 
 </template>
 
@@ -192,9 +194,15 @@ ColorYou = royalblue
 ColorOpponent = orange
 
 .board
-  flex-grow 1
-  flex-shrink 1
   padding 40px
+  padding-top 80px
+  display flex
+  flex-direction column
+
+  .svg
+    flex-grow 0
+    flex-shrink 0
+
   svg
     border 1px solid #888
     text

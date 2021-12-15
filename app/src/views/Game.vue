@@ -1,9 +1,9 @@
 <template lang="pug">
 .game
-  .header
-    h3 MokuMokuMokuMoku
   .body
     .info
+      .header
+        h3 MMMM
       .winner(
         v-if="judge.winner.value"
       )
@@ -247,6 +247,9 @@ ColorOpponent = orange
       flex-shrink 1
       overflow-y scroll
 
+  .board
+    flex-grow 1
+    flex-shrink 1
 
   .player
     font-weight bold
