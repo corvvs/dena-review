@@ -156,19 +156,19 @@ export default defineComponent({
        */
       proceedTurn: function() {
         if (gameData.game.player === "You" && willYouWon.value) {
-          gameData.logs.unshift({
+          this.pushLog({
             action: "Defeat",
             player_id: gameData.game.player_id_you,
             time: new Date(),
           });
         } else if (gameData.game.player === "Opponent" && willOpponentWon.value) {
-          gameData.logs.unshift({
+          this.pushLog({
             action: "Defeat",
             player_id: gameData.game.player_id_opponent,
             time: new Date(),
           });
         } else if (judge.winner.value === "Draw") {
-          gameData.logs.unshift({
+          this.pushLog({
             action: "Draw",
             time: new Date(),
           });
@@ -184,7 +184,7 @@ export default defineComponent({
         if (!(0 <= j && j < Game.Col)) { return; }
         if (Game.Row <= gameData.game.board[j].length) { return; }
         gameData.game.board[j].push(gameData.game.player);
-        gameData.logs.unshift({
+        this.pushLog({
           action: "Place",
           player_id: gameData.game.player === "You" ? gameData.game.player_id_you : gameData.game.player_id_opponent,
           i, j,
@@ -202,6 +202,10 @@ export default defineComponent({
           gameData.game.player = "You";
         }
       },
+
+      pushLog: function(log: Game.Log) {
+        gameData.logs.unshift(log);
+      },
     };
 
     const handlers = {
@@ -212,6 +216,7 @@ export default defineComponent({
 
       clickMatchAgain: () => {
         controller.initializeGame();
+        Game.startGame(gameData.logs);
       },
     };
 

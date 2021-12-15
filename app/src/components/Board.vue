@@ -2,13 +2,13 @@
 .board
   .svg
     svg(
-      :transform="geo.transform"
-      :viewBox="geo.viewBox.value"
-      :width="geo.width"
-      :height="geo.height"
+      :transform="cell_geo.transform"
+      :viewBox="cell_geo.viewBox.value"
+      :width="cell_geo.width"
+      :height="cell_geo.height"
     )
       template(
-        v-for="(row, i) in geo.cellPlacements.value"
+        v-for="(row, i) in cell_geo.cellPlacements.value"
       )
         g(
           v-for="(placement, j) in row"
@@ -21,11 +21,11 @@
             :height="placement.height"
             stroke="gray"
             fill="white"
-            :class="geo.cellClasses.value[i][j]"
+            :class="cell_geo.cellClasses.value[i][j]"
             @click="handlers.clickCell(i, j)"
           )
           text(
-            :transform="geo.transform"  
+            :transform="cell_geo.transform"  
             :x="text_geo.textPlacements.value[i][j].dx"
             :y="text_geo.textPlacements.value[i][j].dy"
             :font-size="text_geo.textPlacements.value[i][j].fontSize"
@@ -96,6 +96,7 @@ export default defineComponent({
         });
       });
     });
+
     /**
      * 今そのセルに置けるかどうか
      */
@@ -151,7 +152,7 @@ export default defineComponent({
         });
       });
     });
-    const geo = {
+    const cell_geo = {
       transform: "scale(1 -1)",
 
       width,
@@ -174,14 +175,14 @@ export default defineComponent({
     const handlers = {
       clickCell: (i: number, j: number) => {
         if (0 <= i && i < Game.Row && 0 <= j && j < Game.Col) {
-          if (!geo.placabilities.value[i][j]) { return; }
+          if (!cell_geo.placabilities.value[i][j]) { return; }
           context.emit("place-cell", { i, j });
         }
       },
     };
 
     return {
-      geo,
+      cell_geo,
       text_geo,
       handlers,
     };
