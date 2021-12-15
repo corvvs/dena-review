@@ -1,5 +1,6 @@
 import _ from 'lodash';
 import { v4 } from 'uuid';
+import { M4Player } from '../model/player'
 
 export namespace Game {
   export const Row = 6;
@@ -7,6 +8,7 @@ export namespace Game {
   export const WinLength = 4; // 何目並べなのか？
   
   export type Player = "You" | "Opponent";
+
   export type Action =
     "GameStart" | // ゲーム開始
     "Place" | // 手
@@ -56,6 +58,21 @@ export namespace Game {
       player_id_opponent: v4(),
       board: _.range(Col).map(() => []),
       player: "You",
+    };
+  }
+
+  export function init2pGame(
+    match_id: string,
+    player: M4Player.PlayerData,
+    opponent_id: string,
+    yourTurn: boolean,
+  ): Game {
+    return {
+      match_id,
+      player_id_you: player.id,
+      player_id_opponent: opponent_id,
+      board: _.range(Col).map(() => []),
+      player: yourTurn ? "You" : "Opponent",
     };
   }
 

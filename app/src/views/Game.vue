@@ -58,6 +58,8 @@
 import _ from 'lodash';
 import { reactive, ref, Ref, SetupContext, defineComponent, onMounted, PropType, watch, computed } from '@vue/composition-api';
 import { Game } from '../model/game'
+import { M4Player } from '../model/player'
+import { M4Match } from '../model/match'
 import Board from '../components/Board.vue'
 import LogItem from '../components/LogItem.vue'
 
@@ -221,6 +223,8 @@ export default defineComponent({
     };
 
     Game.startGame(gameData.logs);
+    const player: M4Player.PlayerData = { id: gameData.game.player_id_you };
+    M4Match.getMatch(player).then(console.log);
     return {
       gameData,
       longestLineLength,
