@@ -3,6 +3,7 @@
   GameView(
     v-if="viewData.game"
     :game="viewData.game"
+    @match-again="handlers.matchAgain"
   )
   template(
     v-else
@@ -44,8 +45,8 @@ export default defineComponent({
       game: null,
     });
 
-    const handlers = {
-      clickMatch: async () => {
+    const controllers = {
+      startMatching: async () => {
         if (viewData.state !== "None") { return }
         viewData.state = "Matching";
         try {
@@ -56,6 +57,17 @@ export default defineComponent({
           console.log(e);
           viewData.state = "None";
         }
+      },
+    };
+
+    const handlers = {
+      clickMatch: async () => {
+        await controllers.startMatching();
+      },
+
+      matchAgain: async () => {
+        viewData.game = null;
+        viewData.state = "None";
       },
     };
     return {

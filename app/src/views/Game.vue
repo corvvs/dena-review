@@ -30,7 +30,7 @@
     .board
       Board(
         :game="gameData.game"
-        :ongoing="!judge.winner.value"
+        :ongoing="gameData.game.player === 'You'"
         :longestLineLength="longestLineLength"
         @place-cell="handlers.clickCell"
       )
@@ -57,9 +57,7 @@
 <script lang="ts">
 import _ from 'lodash';
 import { reactive, ref, Ref, SetupContext, defineComponent, onMounted, PropType, watch, computed } from '@vue/composition-api';
-import { Game } from '../model/game'
-import { M4Player } from '../model/player'
-import { M4Match } from '../model/match'
+import { Game, GameServer } from '../model/game'
 import Board from '../components/Board.vue'
 import LogItem from '../components/LogItem.vue'
 
@@ -75,7 +73,7 @@ export default defineComponent({
     },
   },
 
-setup(prop: {
+  setup(prop: {
     game: Game.Game,
   }, context: SetupContext) {
 
@@ -90,6 +88,19 @@ setup(prop: {
       game: Game.Game,
       logs: Game.Log[];
     } = initGameData();
+
+    const gameServer = new GameServer(prop.game, gameData.logs, (newLog, logs) => {
+      console.log(newLog, logs, prop.game.player_id_you, prop.game.player_id_opponent);
+      gameData.logs.splice(0, gameData.logs.length, ...logs);
+      const board = Game.logs2board({ id: prop.game.player_id_you }, logs);
+      gameData.game.board.splice(0, gameData.game.board.length, ...board);
+      if (newLog.action === "Place") {
+        if (newLog.player_id === prop.game.player_id_opponent) {
+          gameData.game.player = "You";
+        }
+      }
+      console.log(gameData.game, gameData.game.player);
+    });
 
     /**
      * セルの状態
@@ -154,14 +165,6 @@ setup(prop: {
 
     const controller = {
       /**
-       * ゲームを初期化する
-       */
-      initializeGame: function() {
-        const gd = initGameData();
-        gameData.game = gd.game;
-        gameData.logs = gd.logs;
-      },
-      /**
        * ターンを進める
        */
       proceedTurn: function() {
@@ -189,18 +192,9 @@ setup(prop: {
       /**
        * コマを置く
        */
-      placePiece: function(i: number, j: number) {
-        if (!(0 <= i && i < Game.Row)) { return; }
-        if (!(0 <= j && j < Game.Col)) { return; }
-        if (Game.Row <= gameData.game.board[j].length) { return; }
-        gameData.game.board[j].push(gameData.game.player);
-        this.pushLog({
-          action: "Place",
-          player_id: gameData.game.player === "You" ? gameData.game.player_id_you : gameData.game.player_id_opponent,
-          i, j,
-          time: new Date(),
-        });
-        this.proceedTurn();
+      placePiece: async function(i: number, j: number) {
+        await gameServer.putYourHand(i, j);
+        await gameServer.proceedTurn(judge.winner.value);
       },
       /**
        * プレイヤーを交代する
@@ -225,8 +219,7 @@ setup(prop: {
       },
 
       clickMatchAgain: () => {
-        controller.initializeGame();
-        Game.startGame(gameData.logs);
+        context.emit("match-again");
       },
     };
 

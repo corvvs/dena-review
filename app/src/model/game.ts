@@ -45,7 +45,7 @@ export namespace Game {
     /**
      * 盤面 列 -> 行
      */
-    board: Player[][];
+    board: Board;
     /**
      * 今手番であるプレイヤー
      */
@@ -86,6 +86,21 @@ export namespace Game {
 
   export function counterPlayer(player: Player): Player {
     return player === "You" ? "Opponent" : "You";
+  }
+
+  export function logs2board(player: M4Player.PlayerData, logs: Log[]): Board {
+    const board: Board = _.range(Game.Col).map(() => []);
+    _.eachRight(logs, (log) => {
+      const { i, j, action } = log;
+      if (log.action === "Place" && _.isFinite(i) && _.isFinite(j)) {
+        if (log.player_id === player.id) {
+          board[j!].push("You");
+        } else {
+          board[j!].push("Opponent");
+        }
+      }
+    });
+    return board;
   }
 
   export function longestLineLengths(
@@ -174,7 +189,7 @@ export class GameServer {
   constructor(
     private game: Game.Game,
     private logs: Game.Log[],
-    private hookNewHand: (newLog: Game.Log) => void,
+    private hookNewHand: (newLog: Game.Log, logs: Game.Log[]) => void,
   ) {
     const db = FS.getFirestore();
     this.docref = FS.doc(db, "match_closed", game.match_id);
@@ -185,7 +200,7 @@ export class GameServer {
         const logs = snapshot.get("logs") as Game.Log[];
         if (logs.length <= logn) { return; }
         const newLog = logs[0];
-        this.hookNewHand(newLog);
+        this.hookNewHand(newLog, logs);
       },
     });
   }
@@ -193,11 +208,11 @@ export class GameServer {
   async putYourHand(
     i: number, j: number,
   ) {
+    console.log(i, j);
     if (!(0 <= i && i < Game.Row)) { throw new Error("out of bound"); }
     if (!(0 <= j && j < Game.Col)) { throw new Error("out of bound"); }
     if (Game.Row <= this.game.board[j].length) { return; }
     this.game.board[j].push(this.game.player);
-
     this.pushLog({
       action: "Place",
       player_id: this.game.player_id_you,

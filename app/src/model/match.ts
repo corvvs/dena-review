@@ -160,7 +160,7 @@ export namespace M4Match {
       return Game.init2pGame(
         closedMatch.id,
         player,
-        opponent_id!,
+        registerer_id!,
         false,
       );
 
