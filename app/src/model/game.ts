@@ -1,6 +1,7 @@
 import _ from 'lodash';
 import { v4 } from 'uuid';
 import { M4Player } from '../model/player'
+import * as FS from "firebase/firestore";
 
 export namespace Game {
   export const Row = 6;
@@ -165,4 +166,76 @@ export namespace Game {
   }
 };
 
+export class GameServer {
 
+  private docref: FS.DocumentReference<FS.DocumentData>;
+  private unsubscriber: FS.Unsubscribe;
+
+  constructor(
+    private game: Game.Game,
+    private logs: Game.Log[],
+    private hookNewHand: (newLog: Game.Log) => void,
+  ) {
+    const db = FS.getFirestore();
+    this.docref = FS.doc(db, "match_closed", game.match_id);
+    let logn = logs.length;
+    this.unsubscriber = FS.onSnapshot(this.docref, {
+      next: (snapshot) => {
+        if (!snapshot.exists) { throw new Error("doc deleted"); }
+        const logs = snapshot.get("logs") as Game.Log[];
+        if (logs.length <= logn) { return; }
+        const newLog = logs[0];
+        this.hookNewHand(newLog);
+      },
+    });
+  }
+
+  async putYourHand(
+    i: number, j: number,
+  ) {
+    if (!(0 <= i && i < Game.Row)) { throw new Error("out of bound"); }
+    if (!(0 <= j && j < Game.Col)) { throw new Error("out of bound"); }
+    if (Game.Row <= this.game.board[j].length) { return; }
+    this.game.board[j].push(this.game.player);
+
+    this.pushLog({
+      action: "Place",
+      player_id: this.game.player_id_you,
+      i, j,
+      time: new Date(),
+    });
+  }
+
+  async proceedTurn(winner: Game.Player | "Draw" | null) {
+    if (this.game.player === "You" && winner === "You") {
+      this.pushLog({
+        action: "Defeat",
+        player_id: this.game.player_id_you,
+        time: new Date(),
+      });
+    } else if (winner === "Draw") {
+      this.pushLog({
+        action: "Draw",
+        time: new Date(),
+      });
+    } else {
+      this.flipPlayer();
+    }
+    await FS.updateDoc(this.docref, { logs: this.logs });
+  }
+
+  pushLog(log: Game.Log) {
+    this.logs.unshift(log);
+  }
+
+  /**
+   * プレイヤーを交代する
+   */
+  flipPlayer() {
+    if (this.game.player === "You") {
+      this.game.player = "Opponent";
+    } else if (this.game.player === "Opponent") {
+      this.game.player = "You";
+    }
+  }
+}

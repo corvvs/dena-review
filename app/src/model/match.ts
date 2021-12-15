@@ -34,7 +34,7 @@ type MatchClosed = {
    * 対戦相手候補のID
    */
   opponent_id: string;
-  agreed?: boolean;
+  logs: Game.Log[];
 };
 
 export namespace M4Match {
@@ -53,6 +53,7 @@ export namespace M4Match {
       created_at: new Date(),
       registerer_id: opened.registerer_id,
       opponent_id,
+      logs: [],
     };
   }
 

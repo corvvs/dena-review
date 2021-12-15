@@ -68,18 +68,26 @@ export default defineComponent({
     LogItem, Board,
   },
 
-  setup(prop: {
+  props: {
+    game: {
+      type: Object as PropType<Game.Game>,
+      required: true,
+    },
+  },
+
+setup(prop: {
+    game: Game.Game,
   }, context: SetupContext) {
 
     const initGameData = () => {
       return {
-        game: reactive(Game.initGame()),
+        game: prop.game,
         logs: reactive([]),
       };
     };
 
     const gameData: {
-      game: Game.Game;
+      game: Game.Game,
       logs: Game.Log[];
     } = initGameData();
 
@@ -223,8 +231,6 @@ export default defineComponent({
     };
 
     Game.startGame(gameData.logs);
-    const player: M4Player.PlayerData = { id: gameData.game.player_id_you };
-    M4Match.getMatch(player).then(console.log);
     return {
       gameData,
       longestLineLength,
