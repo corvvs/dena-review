@@ -18,7 +18,7 @@
         | Current Player:
         br
         span.player(
-          :gameData.game="gameData.game.player"
+          :class="gameData.game.player"
         ) {{ gameData.game.player }}
       .game-logs
         LogItem.logitem(
