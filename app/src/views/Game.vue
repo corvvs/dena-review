@@ -34,7 +34,24 @@
         :longestLineLength="longestLineLength"
         @place-cell="handlers.clickCell"
       )
-        
+      
+      .panel.gameend(
+        v-if="judge.winner.value"
+      )
+        h3.player.You(
+          v-if="judge.winner.value === 'You'"
+        ) You Won!!
+        h3.player.Opponent(
+          v-else-if="judge.winner.value === 'Opponent'"
+        ) You Lose...
+        h3(
+          v-if="judge.winner.value === 'Draw'"
+        ) Draw Game.
+
+        .inner-panel
+          v-btn(
+            @click="handlers.clickMatchAgain"
+          ) Match Again
 </template>
 
 <script lang="ts">
@@ -192,14 +209,18 @@ export default defineComponent({
         const { i, j } = event;
         controller.placePiece(i, j);
       },
+
+      clickMatchAgain: () => {
+        controller.initializeGame();
+      },
     };
 
     Game.startGame(gameData.logs);
     return {
       gameData,
-      handlers,
       longestLineLength,
       judge,
+      handlers,
     };
   },
 });
