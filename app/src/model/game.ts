@@ -10,15 +10,27 @@ export namespace Game {
   
   export type Player = "You" | "Opponent";
 
+  export type ActualAction =
+    "Place" |
+    "Resign";
+
   export type Action =
+    ActualAction | 
     "GameStart" | // ゲーム開始
-    "Place" | // 手
-    "Resign" | // 投了
     "Draw" | // 引き分け
     "Defeat"; // 勝利
 
   type Board = Player[][];
   type ExtendedBoard = (Player | "empty")[][];
+
+
+  export type ActualLog = {
+    time: Date;
+    action: ActualAction;
+    player_id: string;
+    i?: number;
+    j?: number;
+  };
 
   export type Log = {
     time: Date;
@@ -42,6 +54,10 @@ export namespace Game {
       */
     player_id_opponent: string;
 
+
+    playerYou: M4Player.PlayerData,
+    playerOpponent: M4Player.PlayerData,
+
     /**
      * 盤面 列 -> 行
      */
@@ -52,40 +68,66 @@ export namespace Game {
     player: Player;
   };
 
-  export function initGame(): Game {
-    return {
-      match_id: v4(),
-      player_id_you: v4(),
-      player_id_opponent: v4(),
-      board: _.range(Col).map(() => []),
-      player: "You",
-    };
-  }
-
   export function init2pGame(
     match_id: string,
     player: M4Player.PlayerData,
-    opponent_id: string,
+    opponent: M4Player.PlayerData,
     yourTurn: boolean,
   ): Game {
     return {
       match_id,
       player_id_you: player.id,
-      player_id_opponent: opponent_id,
+      player_id_opponent: opponent.id,
+      playerYou: player,
+      playerOpponent: opponent,
       board: _.range(Col).map(() => []),
       player: yourTurn ? "You" : "Opponent",
     };
   }
 
   export function startGame(gameLogs: Log[]) {
-    gameLogs.unshift({
-      action: "GameStart",
-      time: new Date(),
-    });
   }
 
   export function counterPlayer(player: Player): Player {
     return player === "You" ? "Opponent" : "You";
+  }
+
+  export function logs2virtualLogs(
+    gameStartTime: Date,
+    game: Game.Game,
+    logs: Game.ActualLog[],
+    winner: "You" | "Opponent" | "Draw" | null,
+  ): Game.Log[] {
+    const virtualLogs: Game.Log[] = [];
+    virtualLogs.unshift({
+      time: gameStartTime,
+      action: "GameStart",
+    });
+    _.eachRight(logs, (log) => {
+      virtualLogs.unshift(log);
+    });
+    const topLog = virtualLogs[0];
+    if (topLog.action === "Place") {
+      if (winner === "You")  {
+        virtualLogs.unshift({
+          action: "Defeat",
+          player_id: game.player_id_you,
+          time: topLog.time,
+        });
+      } else if (winner === "Opponent") {
+        virtualLogs.unshift({
+          action: "Defeat",
+          player_id: game.player_id_opponent,
+          time: topLog.time,
+        });
+      } else if (winner === "Draw") {
+        virtualLogs.unshift({
+          action: "Draw",
+          time: topLog.time,
+        });
+      }
+    }
+    return virtualLogs;
   }
 
   export function logs2board(player: M4Player.PlayerData, logs: Log[]): Board {
@@ -188,8 +230,8 @@ export class GameServer {
 
   constructor(
     private game: Game.Game,
-    private logs: Game.Log[],
-    private hookNewHand: (newLog: Game.Log, logs: Game.Log[]) => void,
+    private logs: Game.ActualLog[],
+    private hookNewHand: (newLog: Game.ActualLog, logs: Game.ActualLog[]) => void,
   ) {
     const db = FS.getFirestore();
     this.docref = FS.doc(db, "match_closed", game.match_id);
@@ -197,7 +239,7 @@ export class GameServer {
     this.unsubscriber = FS.onSnapshot(this.docref, {
       next: (snapshot) => {
         if (!snapshot.exists) { throw new Error("doc deleted"); }
-        const logs = snapshot.get("logs") as Game.Log[];
+        const logs = snapshot.get("logs") as Game.ActualLog[];
         if (logs.length <= logn) { return; }
         const newLog = logs[0];
         this.hookNewHand(newLog, logs);
@@ -221,25 +263,17 @@ export class GameServer {
     });
   }
 
-  async proceedTurn(winner: Game.Player | "Draw" | null) {
-    if (this.game.player === "You" && winner === "You") {
-      this.pushLog({
-        action: "Defeat",
-        player_id: this.game.player_id_you,
-        time: new Date(),
-      });
-    } else if (winner === "Draw") {
-      this.pushLog({
-        action: "Draw",
-        time: new Date(),
-      });
-    } else {
-      this.flipPlayer();
-    }
+  async proceedTurn(
+    logs: Game.Log[],
+  ) {
     await FS.updateDoc(this.docref, { logs: this.logs });
+    if (logs.length > 0 && ["Defeat", "Draw", "Resign"].includes(logs[0].action)) {
+      return;
+    }
+    this.flipPlayer();
   }
 
-  pushLog(log: Game.Log) {
+  pushLog(log: Game.ActualLog) {
     this.logs.unshift(log);
   }
 

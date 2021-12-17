@@ -2,6 +2,7 @@
 .master
   GameView(
     v-if="viewData.game"
+    :player="player"
     :game="viewData.game"
     @match-again="handlers.matchAgain"
   )
@@ -11,11 +12,28 @@
     .title
       h2 M M M M
     .enc
-      v-btn(
-        :disabled="viewData.state !== 'None'"
-        :loading="viewData.state === 'Matching'"
-        @click="handlers.clickMatch"
-      ) マッチングする
+      .nickname
+        v-text-field(
+          :disabled="viewData.state !== 'None'"
+          label="ニックネーム(任意)"
+          v-model="viewData.nickname"
+        )
+      .go
+        v-btn(
+          :disabled="viewData.state !== 'None'"
+          :loading="viewData.state === 'Matching'"
+          @click="handlers.clickMatch"
+        ) マッチングする
+
+      .state(
+        v-if="viewData.state === 'None'"
+      ) クリックするとマッチングを試みます
+      .state(
+        v-else-if="viewData.state === 'Matching'"
+      ) しばらくお待ちください...
+      .state(
+        v-else-if="viewData.state === 'Matched'"
+      ) マッチング完了！
 </template>
 
 <script lang="ts">
@@ -39,10 +57,18 @@ export default defineComponent({
     const player: M4Player.PlayerData = M4Player.publishPlayer();
     const viewData: {
       state: MatchingState;
+      nickname: string;
       game: Game.Game | null;
     } = reactive({
       state: "None",
+      nickname: "",
       game: null,
+    });
+
+    const effectiveNickname = computed(() => {
+      const n = viewData.nickname.trim();
+      if (!n) { return null; }
+      return n;
     });
 
     const controllers = {
@@ -50,8 +76,9 @@ export default defineComponent({
         if (viewData.state !== "None") { return }
         viewData.state = "Matching";
         try {
+          player.name = effectiveNickname.value || "";
           const game = await M4Match.getMatch(player);
-          viewData.game = game;
+          viewData.game = reactive(game!) as Game.Game;
           viewData.state = "Matched";
         } catch (e) {
           console.log(e);
@@ -71,6 +98,7 @@ export default defineComponent({
       },
     };
     return {
+      player,
       viewData,
       handlers,
     };
@@ -88,4 +116,10 @@ export default defineComponent({
 
   .enc
     padding 40px
+    display flex
+    flex-direction column
+    align-items center
+    justify-content center
+    .nickname
+      width 24em;
 </style>

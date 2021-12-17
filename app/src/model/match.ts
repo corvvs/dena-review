@@ -14,10 +14,12 @@ import { collection, doc, getDoc, getDocs, updateDoc, where } from 'firebase/fir
 type MatchOpened = {
   created_at: Date;
   registerer_id: string;
+  registerer_name: string;
   /**
    * 対戦相手候補のID
    */
   opponent_id?: string;
+  opponent_name?: string;
   /**
    * 募集完了対戦オブジェクトのID; 候補が決まったら募集側が作る
    */
@@ -30,10 +32,12 @@ type MatchOpened = {
 type MatchClosed = {
   created_at: Date;
   registerer_id: string;
+  registerer_name: string;
   /**
    * 対戦相手候補のID
    */
   opponent_id: string;
+  opponent_name: string
   logs: Game.Log[];
 };
 
@@ -45,14 +49,21 @@ export namespace M4Match {
     return {
       created_at: new Date(),
       registerer_id: player.id,
+      registerer_name: player.name,
     };
   }
 
-  function makeClosedMatch(opened: MatchOpened, opponent_id: string): MatchClosed {
+  function makeClosedMatch(
+    opened: MatchOpened,
+    opponent_id: string,
+    opponent_name: string,
+  ): MatchClosed {
     return {
       created_at: new Date(),
       registerer_id: opened.registerer_id,
+      registerer_name: opened.registerer_name,
       opponent_id,
+      opponent_name,
       logs: [],
     };
   }
@@ -71,6 +82,7 @@ export namespace M4Match {
       console.log("no opened doc");
       // `match_opened`にドキュメントを作成し、listenする。
       let opponent_id: string | null = null;
+      let opponent_name: string | null = null;
       const matchOpened = makeOpenedMatch(player);
       const matchOpenedRef = await FS.addDoc(FS.collection(db, ColOpened), matchOpened);
       console.log(`made opened doc: ${matchOpenedRef.id}`);
@@ -83,10 +95,11 @@ export namespace M4Match {
             // `match_opened`ドキュメントの`opponent_id`に値が入った場合、
             opponent_id = snapshot.get("opponent_id");
             if (!opponent_id) { return; }
+            opponent_name = snapshot.get("opponent_name") || "";
             console.log(`opponent_id is: ${opponent_id}`);
             
             // 1. `match_closed`ドキュメントを作成
-            const matchClosed = makeClosedMatch(matchOpened, opponent_id);
+            const matchClosed = makeClosedMatch(matchOpened, opponent_id, opponent_name!);
             const matchClosedRef = await FS.addDoc(FS.collection(db, ColClosed), matchClosed);
             console.log(`made closed doc: ${matchClosedRef.id}`);
             // 2. `match_opened`ドキュメントのlistenを解除
@@ -122,7 +135,10 @@ export namespace M4Match {
       return Game.init2pGame(
         matchClosedRef.id,
         player,
-        opponent_id!,
+        {
+          id: opponent_id!,
+          name: opponent_name!
+        },
         true,
       );
 
@@ -133,7 +149,7 @@ export namespace M4Match {
       const closed_match_id = await (new Promise<string>(async (res, rej) => {
         let rejected = false;
         // 1. `match_opened`ドキュメントに対して自分のIDを書き込む。
-        await updateDoc(openedDoc.ref, { opponent_id: player.id });
+        await updateDoc(openedDoc.ref, { opponent_id: player.id, opponent_name: player.name });
         // 2. `match_opened`ドキュメントをlisten
         const unsubscriber = FS.onSnapshot(openedDoc.ref, {
           next: async (snapshot) => {
@@ -152,7 +168,7 @@ export namespace M4Match {
       }));
       // 5. `match_closed`ドキュメントの`opponent_id`が自分と同じだったら、ゲーム開始
       const closedMatch = await FS.getDoc(FS.doc(db, ColClosed, closed_match_id));
-      const { registerer_id, opponent_id } = closedMatch.data() || {};
+      const { registerer_id, registerer_name, opponent_id } = closedMatch.data() || {};
       if (!registerer_id || !opponent_id || opponent_id !== player.id) {
         console.log("failed to match up");
         return null;
@@ -160,7 +176,10 @@ export namespace M4Match {
       return Game.init2pGame(
         closedMatch.id,
         player,
-        registerer_id!,
+        {
+          id: registerer_id!,
+          name: registerer_name || "",
+        },
         false,
       );
 

@@ -30,8 +30,8 @@ export default defineComponent({
     log: Game.Log;
   }, context: SetupContext) {
     const player = computed(() => {
-      if (prop.log.player_id === prop.game.player_id_you) { return 'You'; }
-      if (prop.log.player_id === prop.game.player_id_opponent) { return 'Opponent'; }
+      if (prop.log.player_id === prop.game.playerYou.id) { return 'You'; }
+      if (prop.log.player_id === prop.game.playerOpponent.id) { return 'Opponent'; }
       return '';
     });
     return {

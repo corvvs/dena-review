@@ -4,25 +4,13 @@
     .info
       .header
         h3 MMMM
-      .winner(
-        v-if="judge.winner.value"
+      MatchUp.matchup(
+        :game="gameData.game"
+        :winner="judge.winner.value || ''"
       )
-        | Winner:
-        br
-        span.player(
-          :class="judge.winner.value"
-        ) {{ judge.winner.value }}
-      .current-player(
-        v-else
-      )
-        | Current Player:
-        br
-        span.player(
-          :class="gameData.game.player"
-        ) {{ gameData.game.player }}
       .game-logs
         LogItem.logitem(
-          v-for="log in gameData.logs"
+          v-for="log in virtualLogs"
           :game="gameData.game"
           :log="log"
         )
@@ -30,7 +18,7 @@
     .board
       Board(
         :game="gameData.game"
-        :ongoing="gameData.game.player === 'You'"
+        :ongoing="!judge.winner.value && gameData.game.player === 'You'"
         :longestLineLength="longestLineLength"
         @place-cell="handlers.clickCell"
       )
@@ -45,7 +33,7 @@
           v-else-if="judge.winner.value === 'Opponent'"
         ) You Lose...
         h3(
-          v-if="judge.winner.value === 'Draw'"
+          v-else-if="judge.winner.value === 'Draw'"
         ) Draw Game.
 
         .inner-panel
@@ -57,16 +45,22 @@
 <script lang="ts">
 import _ from 'lodash';
 import { reactive, ref, Ref, SetupContext, defineComponent, onMounted, PropType, watch, computed } from '@vue/composition-api';
+import { M4Player } from '../model/player'
 import { Game, GameServer } from '../model/game'
+import MatchUp from '../components/MatchUp.vue'
 import Board from '../components/Board.vue'
 import LogItem from '../components/LogItem.vue'
 
 export default defineComponent({
   components: {
-    LogItem, Board,
+    MatchUp, LogItem, Board,
   },
 
   props: {
+    player: {
+      type: Object as PropType<M4Player.PlayerData>,
+      required: true,
+    },
     game: {
       type: Object as PropType<Game.Game>,
       required: true,
@@ -74,7 +68,8 @@ export default defineComponent({
   },
 
   setup(prop: {
-    game: Game.Game,
+    player: M4Player.PlayerData;
+    game: Game.Game;
   }, context: SetupContext) {
 
     const initGameData = () => {
@@ -86,17 +81,25 @@ export default defineComponent({
 
     const gameData: {
       game: Game.Game,
-      logs: Game.Log[];
+      logs: Game.ActualLog[];
     } = initGameData();
 
-    const gameServer = new GameServer(prop.game, gameData.logs, (newLog, logs) => {
-      console.log(newLog, logs, prop.game.player_id_you, prop.game.player_id_opponent);
+    const gameServer = new GameServer(
+      prop.game,
+      gameData.logs,
+      (newLog, logs) => {
+      console.log(newLog, logs, prop.game.playerYou.id, prop.game.playerOpponent.id);
       gameData.logs.splice(0, gameData.logs.length, ...logs);
-      const board = Game.logs2board({ id: prop.game.player_id_you }, logs);
+      const board = Game.logs2board(prop.game.playerYou, logs);
       gameData.game.board.splice(0, gameData.game.board.length, ...board);
       if (newLog.action === "Place") {
-        if (newLog.player_id === prop.game.player_id_opponent) {
-          gameData.game.player = "You";
+        if (newLog.player_id === prop.game.playerOpponent.id) {
+          if (gameData.game.player !== "You") {
+            console.log("flipped")
+            gameData.game.player = "You";
+          } else {
+            console.log("same?")
+          }
         }
       }
       console.log(gameData.game, gameData.game.player);
@@ -165,50 +168,11 @@ export default defineComponent({
 
     const controller = {
       /**
-       * ターンを進める
-       */
-      proceedTurn: function() {
-        if (gameData.game.player === "You" && willYouWon.value) {
-          this.pushLog({
-            action: "Defeat",
-            player_id: gameData.game.player_id_you,
-            time: new Date(),
-          });
-        } else if (gameData.game.player === "Opponent" && willOpponentWon.value) {
-          this.pushLog({
-            action: "Defeat",
-            player_id: gameData.game.player_id_opponent,
-            time: new Date(),
-          });
-        } else if (judge.winner.value === "Draw") {
-          this.pushLog({
-            action: "Draw",
-            time: new Date(),
-          });
-        } else {
-          this.flipPlayer();
-        }
-      },
-      /**
        * コマを置く
        */
       placePiece: async function(i: number, j: number) {
         await gameServer.putYourHand(i, j);
-        await gameServer.proceedTurn(judge.winner.value);
-      },
-      /**
-       * プレイヤーを交代する
-       */
-      flipPlayer: function() {
-        if (gameData.game.player === "You") {
-          gameData.game.player = "Opponent";
-        } else if (gameData.game.player === "Opponent") {
-          gameData.game.player = "You";
-        }
-      },
-
-      pushLog: function(log: Game.Log) {
-        gameData.logs.unshift(log);
+        await gameServer.proceedTurn(gameData.logs);
       },
     };
 
@@ -226,6 +190,14 @@ export default defineComponent({
     Game.startGame(gameData.logs);
     return {
       gameData,
+      virtualLogs: computed(() => {
+        return Game.logs2virtualLogs(
+          new Date(),
+          gameData.game,
+          gameData.logs,
+          judge.winner.value,
+        );
+      }),
       longestLineLength,
       judge,
       handlers,
@@ -267,9 +239,10 @@ ColorOpponent = orange
     display flex
     flex-direction column
 
-    .current-player
+    .matchup
       flex-grow 0
       flex-shrink 0
+
     .game-logs
       border-top FrameBorder
       flex-grow 1
