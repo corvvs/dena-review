@@ -4,6 +4,8 @@ import { M4Player } from '../model/player'
 import * as FS from "firebase/firestore";
 import * as FSUtil from '../utils/firestore';
 
+const Prolong = 60 * 1000;
+
 export namespace Game {
   export const Row = 6;
   export const Col = 7;
@@ -67,6 +69,8 @@ export namespace Game {
      * 今手番であるプレイヤー
      */
     player: Player;
+
+    neutral: boolean;
   };
 
   export function init2pGame(
@@ -74,6 +78,7 @@ export namespace Game {
     player: M4Player.PlayerData,
     opponent: M4Player.PlayerData,
     yourTurn: boolean,
+    neutral: boolean,
   ): Game {
     return {
       match_id,
@@ -83,6 +88,7 @@ export namespace Game {
       playerOpponent: opponent,
       board: _.range(Col).map(() => []),
       player: yourTurn ? "You" : "Opponent",
+      neutral,
     };
   }
 
@@ -251,6 +257,7 @@ export class GameServer {
   async putYourHand(
     i: number, j: number,
   ) {
+    if (this.game.neutral) { return; }
     console.log(i, j);
     if (!(0 <= i && i < Game.Row)) { throw new Error("out of bound"); }
     if (!(0 <= j && j < Game.Col)) { throw new Error("out of bound"); }
@@ -262,7 +269,10 @@ export class GameServer {
       i, j,
       time: new Date(),
     });
-    await FS.updateDoc(this.docref, { logs: this.logs });
+    await FS.updateDoc(this.docref, {
+      logs: this.logs,
+      expires_at: new Date(Date.now() + Prolong),
+    });
     if (this.logs.length > 0 && ["Defeat", "Draw", "Resign"].includes(this.logs[0].action)) {
       return;
     }

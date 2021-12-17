@@ -15,12 +15,13 @@
       .nickname
         v-text-field(
           :disabled="viewData.state !== 'None'"
-          label="ニックネーム(任意)"
+          label="ニックネーム"
+          hint="2文字以上です"
           v-model="viewData.nickname"
         )
       .go
         v-btn(
-          :disabled="viewData.state !== 'None'"
+          :disabled="!effectiveNickname || viewData.state !== 'None'"
           :loading="viewData.state === 'Matching'"
           @click="handlers.clickMatch"
         ) マッチングする
@@ -37,6 +38,10 @@
       .state(
         v-else-if="viewData.state === 'Matched'"
       ) マッチング完了！
+    .watcher
+      v-btn(
+        @click="handlers.clickWatcher"
+      ) 観戦する
 </template>
 
 <script lang="ts">
@@ -46,6 +51,7 @@ import { Game } from '../model/game'
 import { M4Player } from '../model/player'
 import { M4Match } from '../model/match'
 import GameView from '../views/Game.vue'
+import Router from '../router/index'
 
 type MatchingState = "None" | "Matching" | "Matched";
 
@@ -73,6 +79,7 @@ export default defineComponent({
     const effectiveNickname = computed(() => {
       const n = viewData.nickname.trim();
       if (!n) { return null; }
+      if (n.length < 2) { return null; }
       return n;
     });
 
@@ -103,10 +110,15 @@ export default defineComponent({
         viewData.game = null;
         viewData.state = "None";
       },
+
+      clickWatcher: () => {
+        Router.push('w');
+      },
     };
     return {
       player,
       viewData,
+      effectiveNickname,
       handlers,
     };
   },

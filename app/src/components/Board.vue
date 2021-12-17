@@ -135,6 +135,7 @@ export default defineComponent({
       return _.range(Game.Row).map((i) => {
         return _.range(Game.Col).map((j) => {
           if (!prop.ongoing) { return false; }
+          if (prop.game.neutral) { return false; }
           return prop.game.board[j].length == i;
         });
       });
