@@ -173,7 +173,6 @@ export default defineComponent({
        */
       placePiece: async function(i: number, j: number) {
         await gameServer.putYourHand(i, j);
-        await gameServer.proceedTurn(gameData.logs);
       },
     };
 

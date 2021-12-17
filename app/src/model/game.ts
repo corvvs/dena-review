@@ -255,23 +255,17 @@ export class GameServer {
     if (!(0 <= i && i < Game.Row)) { throw new Error("out of bound"); }
     if (!(0 <= j && j < Game.Col)) { throw new Error("out of bound"); }
     if (Game.Row <= this.game.board[j].length) { return; }
-    this.game.board[j].push(this.game.player);
+    this.flipPlayer();
     this.pushLog({
       action: "Place",
       player_id: this.game.player_id_you,
       i, j,
       time: new Date(),
     });
-  }
-
-  async proceedTurn(
-    logs: Game.Log[],
-  ) {
     await FS.updateDoc(this.docref, { logs: this.logs });
-    if (logs.length > 0 && ["Defeat", "Draw", "Resign"].includes(logs[0].action)) {
+    if (this.logs.length > 0 && ["Defeat", "Draw", "Resign"].includes(this.logs[0].action)) {
       return;
     }
-    this.flipPlayer();
   }
 
   pushLog(log: Game.ActualLog) {
