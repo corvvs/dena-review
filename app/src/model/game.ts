@@ -2,6 +2,7 @@ import _ from 'lodash';
 import { v4 } from 'uuid';
 import { M4Player } from '../model/player'
 import * as FS from "firebase/firestore";
+import * as FSUtil from '../utils/firestore';
 
 export namespace Game {
   export const Row = 6;
@@ -234,7 +235,7 @@ export class GameServer {
     private hookNewHand: (newLog: Game.ActualLog, logs: Game.ActualLog[]) => void,
   ) {
     const db = FS.getFirestore();
-    this.docref = FS.doc(db, "match_closed", game.match_id);
+    this.docref = FS.doc(db, FSUtil.Collection.ColClosed, game.match_id);
     let logn = logs.length;
     this.unsubscriber = FS.onSnapshot(this.docref, {
       next: (snapshot) => {

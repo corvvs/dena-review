@@ -24,6 +24,15 @@
             :class="cell_geo.cellClasses.value[i][j]"
             @click="handlers.clickCell(i, j)"
           )
+          rect.last-mark(
+            :x="placement.lx"
+            :y="placement.ly"
+            :width="placement.lwidth"
+            :height="placement.lheight"
+            stroke="none"
+            :class="cell_geo.cellClasses.value[i][j]"
+            @click="handlers.clickCell(i, j)"
+          )
           text(
             :transform="cell_geo.transform"  
             :x="text_geo.textPlacements.value[i][j].dx"
@@ -53,11 +62,16 @@ export default defineComponent({
       type: Array as PropType<number[][]>,
       required: true,
     },
+    logs: {
+      type: Object as PropType<Game.ActualLog[]>,
+      required: true,
+    },
   },
 
   setup(prop: {
     game: Game.Game;
     ongoing: boolean;
+    logs: Game.ActualLog[];
   }, context: SetupContext) {
 
     const cellSize = 80;
@@ -76,8 +90,12 @@ export default defineComponent({
             y: span + cellSize * (i + 0.5),
             rx: -cellSize / 2,
             ry: -cellSize / 2,
+            lx: (-cellSize / 2) * 0.55,
+            ly: (-cellSize / 2) * 0.55,
             width: cellSize,
             height: cellSize,
+            lwidth: cellSize * 0.55,
+            lheight: cellSize * 0.55,
           };
         });
       });
@@ -113,12 +131,14 @@ export default defineComponent({
     });
 
     const cellClasses = computed(() => {
+      const lastLog = _.first(prop.logs);
       return _.range(Game.Row).map((i) => {
         return _.range(Game.Col).map((j) => {
           const occupation = cellOccupations.value[i][j];
           const r: any = {
             "placable": placabilities.value[i][j],
             "non-placable": !placabilities.value[i][j],
+            "last": lastLog && lastLog.i === i && lastLog.j === j,
           };
           r[occupation] = true;
           return r;
@@ -193,6 +213,8 @@ export default defineComponent({
 <style lang="stylus" scoped>
 ColorYou = royalblue
 ColorOpponent = orange
+ColorLastYou = lightgreen
+ColorLastOpponent = tomato
 
 .board
   padding 40px
@@ -214,10 +236,20 @@ ColorOpponent = orange
       fill #ddf
       &:hover
         cursor pointer
-        fill lightgreen
+        fill ColorLastYou
 
     &.You
       fill ColorYou
     &.Opponent
       fill ColorOpponent
+  .last-mark
+    pointer-events none
+    display none
+    &.last
+      display inline
+      &.You
+        fill ColorLastYou
+      &.Opponent
+        fill ColorLastOpponent
+
 </style>

@@ -38,3 +38,10 @@ export async function askFirstUpdate<T>(
     }
   });
 }
+
+export const Collection = {
+  ColClosed: "match_closed",
+  ColOpened: "match_opened",
+  // ColClosed: "test_match_closed",
+  // ColOpened: "test_match_opened",
+};

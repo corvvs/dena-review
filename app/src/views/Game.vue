@@ -20,6 +20,7 @@
         :game="gameData.game"
         :ongoing="!judge.winner.value && gameData.game.player === 'You'"
         :longestLineLength="longestLineLength"
+        :logs="gameData.logs"
         @place-cell="handlers.clickCell"
       )
       

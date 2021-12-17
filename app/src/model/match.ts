@@ -56,9 +56,6 @@ type MatchClosed = {
 
 
 export namespace M4Match {
-  const ColClosed = "match_closed";
-  const ColOpened = "match_opened";
-
   function makeOpenedMatch(player: M4Player.PlayerData): MatchOpened {
     return {
       created_at: new Date(),
@@ -89,7 +86,7 @@ export namespace M4Match {
 
     const db = FS.getFirestore();
     const q = FS.query(
-      FS.collection(db, ColOpened),
+      FS.collection(db, FSUtil.Collection.ColOpened),
       FS.where("expires_at", ">", new Date()),
     );
     for (let i = 0; i < MaxRetry; i += 1) {
@@ -117,7 +114,7 @@ export namespace M4Match {
     // `match_opened`にドキュメントを作成し、listenする。
     let opponent_id: string | null = null;
     const matchOpened = makeOpenedMatch(player);
-    const matchOpenedRef = await FS.addDoc(FS.collection(db, ColOpened), matchOpened);
+    const matchOpenedRef = await FS.addDoc(FS.collection(db, FSUtil.Collection.ColOpened), matchOpened);
     console.log(`made opened doc: ${matchOpenedRef.id}`);
 
 
@@ -137,7 +134,7 @@ export namespace M4Match {
       { timeout: TimeOut },
     )
     // 1. `match_closed`ドキュメントを作成
-    const matchClosedRef = await FS.addDoc(FS.collection(db, ColClosed), matchClosed);
+    const matchClosedRef = await FS.addDoc(FS.collection(db, FSUtil.Collection.ColClosed), matchClosed);
     console.log(`made closed doc: ${matchClosedRef.id}`);
 
     // 3. `match_opened`ドキュメントの`closed_match_id`に`match_closed`ドキュメントのIDを書き込む
@@ -193,7 +190,7 @@ export namespace M4Match {
       console.log(`receipt match id: ${closed_match_id}`);
 
       // 5. `match_closed`ドキュメントの`opponent_id`が自分と同じだったら、ゲーム開始
-      const closedMatch = await FS.getDoc(FS.doc(db, ColClosed, closed_match_id));
+      const closedMatch = await FS.getDoc(FS.doc(db, FSUtil.Collection.ColClosed, closed_match_id));
       const { registerer_id, registerer_name, opponent_id } = closedMatch.data() || {};
       if (!registerer_id || !opponent_id || opponent_id !== player.id) {
         console.log("failed to match up");
