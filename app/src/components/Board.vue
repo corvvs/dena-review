@@ -63,7 +63,7 @@ export default defineComponent({
       required: true,
     },
     logs: {
-      type: Object as PropType<Game.ActualLog[]>,
+      type: Array as PropType<Game.ActualLog[]>,
       required: true,
     },
   },

@@ -93,7 +93,7 @@ export namespace M4Match {
       try {
         console.log(`matching try #${i}`);
         const result = await FS.getDocs(q);
-        const opened_docs = result.docs.filter(d => !d.get("opponent_id"));
+        const opened_docs = result.docs.filter(d => !d.get("opponent_id") && d.get("registerer_id") !== player.id);
 
         if (opened_docs.length === 0) {
           return await getMatchSupply(player);
