@@ -25,8 +25,9 @@ https://moku.corvvs.dev/
 ### 構成
 
 Webアプリ部分はVue.js + TypeScriptです。\
-Vue.jsのバージョンは2ですが、Vue3の機能であるComposition APIを使っています。
-また、データベースとホスティングのためにFirebaseを利用しています。
+Vue.jsはバージョン2系ですが、バージョン3系の機能であるComposition APIを使っています。
+
+また、データベース(Firestore)とホスティングのためにFirebaseを利用しています。
 
 ### 開発サーバの起動
 
@@ -44,4 +45,3 @@ Firebaseのアカウントと、Firebaseプロジェクトが必要です。
   - それぞれ`/.env.sample`と`/.firebaserc.sample`がリポジトリに入っているので、参考にしてください。
 2. `/app`フォルダに移動します。
 3. `$ npm run deploy`で、ビルドとデプロイが順に実行されます。
-
