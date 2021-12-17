@@ -4,8 +4,9 @@ import * as FSUtil from '../utils/firestore';
 import { M4Player } from '../model/player';
 import { Game } from '../model/game';
 
-const prolong = 60 * 1000;
-const timeout = 5 * 1000;
+const Prolong = 60 * 1000;
+const TimeOut = 60 * 1000;
+const MaxRetry = 100;
 
 // 「対戦」オブジェクト
 
@@ -63,7 +64,7 @@ export namespace M4Match {
       created_at: new Date(),
       registerer_id: player.id,
       registerer_name: player.name,
-      expires_at: new Date(Date.now() + prolong),
+      expires_at: new Date(Date.now() + Prolong),
     };
   }
 
@@ -79,7 +80,7 @@ export namespace M4Match {
       opponent_id,
       opponent_name,
       logs: [],
-      expires_at: new Date(Date.now() + prolong),
+      expires_at: new Date(Date.now() + Prolong),
     };
   }
 
@@ -91,8 +92,7 @@ export namespace M4Match {
       FS.collection(db, ColOpened),
       FS.where("expires_at", ">", new Date()),
     );
-    const maxRetry = 1000;
-    for (let i = 0; i < maxRetry; i += 1) {
+    for (let i = 0; i < MaxRetry; i += 1) {
       try {
         console.log(`matching try #${i}`);
         const result = await FS.getDocs(q);
@@ -134,7 +134,7 @@ export namespace M4Match {
           const matchClosed = makeClosedMatch(matchOpened, opponent_id!, opponent_name!);
           return matchClosed;
       },
-      { timeout },
+      { timeout: TimeOut },
     )
     // 1. `match_closed`ドキュメントを作成
     const matchClosedRef = await FS.addDoc(FS.collection(db, ColClosed), matchClosed);
@@ -152,7 +152,7 @@ export namespace M4Match {
         return "accept";
       },
       (snapshot) => snapshot.data()!,
-      { timeout },
+      { timeout: TimeOut },
     );
     console.log(`receipt id: ${closed_opponent_id}`);
     console.log(`matched up`);
@@ -187,7 +187,7 @@ export namespace M4Match {
           return "accept";
         },
         (snapshot) => snapshot.get("closed_match_id")!,
-        { timeout },
+        { timeout: TimeOut },
         );
       // 3. `match_opened`ドキュメントの`closed_match_id`に値が入ったら、対応する`match_closed`ドキュメントを見に行く。
       console.log(`receipt match id: ${closed_match_id}`);
