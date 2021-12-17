@@ -25,8 +25,11 @@
           @click="handlers.clickMatch"
         ) マッチングする
 
+      .state.error(
+        v-if="viewData.matchingError"
+      ) {{ viewData.matchingError }}
       .state(
-        v-if="viewData.state === 'None'"
+        v-else-if="viewData.state === 'None'"
       ) クリックするとマッチングを試みます
       .state(
         v-else-if="viewData.state === 'Matching'"
@@ -59,10 +62,12 @@ export default defineComponent({
       state: MatchingState;
       nickname: string;
       game: Game.Game | null;
+      matchingError: string;
     } = reactive({
       state: "None",
       nickname: "",
       game: null,
+      matchingError: "",
     });
 
     const effectiveNickname = computed(() => {
@@ -75,6 +80,7 @@ export default defineComponent({
       startMatching: async () => {
         if (viewData.state !== "None") { return }
         viewData.state = "Matching";
+        viewData.matchingError = "";
         try {
           player.name = effectiveNickname.value || "";
           const game = await M4Match.getMatch(player);
@@ -83,6 +89,7 @@ export default defineComponent({
         } catch (e) {
           console.log(e);
           viewData.state = "None";
+          viewData.matchingError = "マッチングに失敗しました。もう一度お試しください。";
         }
       },
     };
@@ -122,4 +129,6 @@ export default defineComponent({
     justify-content center
     .nickname
       width 24em;
+  .error
+    color red
 </style>
