@@ -14,12 +14,21 @@
           v-for="(placement, j) in row"
           :transform="`translate(${placement.x}, ${placement.y})`"
         )
-          rect.cell(
+          rect.frame(
             :x="placement.rx"
             :y="placement.ry"
             :width="placement.width"
             :height="placement.height"
             stroke="gray"
+            fill="none"
+            :class="cell_geo.cellClasses.value[i][j]"
+            @click="handlers.clickCell(i, j)"
+          )
+          rect.cell(
+            :x="placement.rx"
+            :y="placement.ry"
+            :width="placement.width"
+            :height="placement.height"
             fill="white"
             :class="cell_geo.cellClasses.value[i][j]"
             @click="handlers.clickCell(i, j)"
@@ -27,11 +36,12 @@
           rect.last-mark(
             :x="placement.lx"
             :y="placement.ly"
+            rx="5"
+            ry="5"
             :width="placement.lwidth"
             :height="placement.lheight"
             stroke="none"
             :class="cell_geo.cellClasses.value[i][j]"
-            @click="handlers.clickCell(i, j)"
           )
           text(
             :transform="cell_geo.transform"  
@@ -242,6 +252,8 @@ ColorLastOpponent = tomato
       fill ColorYou
     &.Opponent
       fill ColorOpponent
+  .frame
+    pointer-events none
   .last-mark
     pointer-events none
     display none
@@ -251,5 +263,21 @@ ColorLastOpponent = tomato
         fill ColorLastYou
       &.Opponent
         fill ColorLastOpponent
+
+.cell, .last-mark
+  &.last
+    animation-name placingPanelAnime
+    animation-duration 0.33s
+    animation-fill-mode forwards
+    animation-iteration-count 1
+    animation-timing-function cubic-bezier(.64,1.82,.48,.73)
+
+
+
+@keyframes placingPanelAnime
+  from
+    transform scale(0, 0)
+  to
+    transform scale(1,1)
 
 </style>

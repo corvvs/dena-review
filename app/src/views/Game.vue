@@ -16,6 +16,8 @@
         )
 
     .board
+      .match-id
+        h3 Match ID: {{ game.match_id }}
       Board(
         :game="gameData.game"
         :ongoing="!judge.winner.value && gameData.game.player === 'You'"
