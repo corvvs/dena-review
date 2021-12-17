@@ -1,5 +1,7 @@
 import _ from 'lodash';
 import { v4 } from 'uuid';
+import { M4Player } from '../model/player'
+import * as FS from "firebase/firestore";
 
 export namespace Game {
   export const Row = 6;
@@ -7,15 +9,28 @@ export namespace Game {
   export const WinLength = 4; // 何目並べなのか？
   
   export type Player = "You" | "Opponent";
+
+  export type ActualAction =
+    "Place" |
+    "Resign";
+
   export type Action =
+    ActualAction | 
     "GameStart" | // ゲーム開始
-    "Place" | // 手
-    "Resign" | // 投了
     "Draw" | // 引き分け
     "Defeat"; // 勝利
 
   type Board = Player[][];
   type ExtendedBoard = (Player | "empty")[][];
+
+
+  export type ActualLog = {
+    time: Date;
+    action: ActualAction;
+    player_id: string;
+    i?: number;
+    j?: number;
+  };
 
   export type Log = {
     time: Date;
@@ -39,35 +54,95 @@ export namespace Game {
       */
     player_id_opponent: string;
 
+
+    playerYou: M4Player.PlayerData,
+    playerOpponent: M4Player.PlayerData,
+
     /**
      * 盤面 列 -> 行
      */
-    board: Player[][];
+    board: Board;
     /**
      * 今手番であるプレイヤー
      */
     player: Player;
   };
 
-  export function initGame(): Game {
+  export function init2pGame(
+    match_id: string,
+    player: M4Player.PlayerData,
+    opponent: M4Player.PlayerData,
+    yourTurn: boolean,
+  ): Game {
     return {
-      match_id: v4(),
-      player_id_you: v4(),
-      player_id_opponent: v4(),
+      match_id,
+      player_id_you: player.id,
+      player_id_opponent: opponent.id,
+      playerYou: player,
+      playerOpponent: opponent,
       board: _.range(Col).map(() => []),
-      player: "You",
+      player: yourTurn ? "You" : "Opponent",
     };
   }
 
   export function startGame(gameLogs: Log[]) {
-    gameLogs.unshift({
-      action: "GameStart",
-      time: new Date(),
-    });
   }
 
   export function counterPlayer(player: Player): Player {
     return player === "You" ? "Opponent" : "You";
+  }
+
+  export function logs2virtualLogs(
+    gameStartTime: Date,
+    game: Game.Game,
+    logs: Game.ActualLog[],
+    winner: "You" | "Opponent" | "Draw" | null,
+  ): Game.Log[] {
+    const virtualLogs: Game.Log[] = [];
+    virtualLogs.unshift({
+      time: gameStartTime,
+      action: "GameStart",
+    });
+    _.eachRight(logs, (log) => {
+      virtualLogs.unshift(log);
+    });
+    const topLog = virtualLogs[0];
+    if (topLog.action === "Place") {
+      if (winner === "You")  {
+        virtualLogs.unshift({
+          action: "Defeat",
+          player_id: game.player_id_you,
+          time: topLog.time,
+        });
+      } else if (winner === "Opponent") {
+        virtualLogs.unshift({
+          action: "Defeat",
+          player_id: game.player_id_opponent,
+          time: topLog.time,
+        });
+      } else if (winner === "Draw") {
+        virtualLogs.unshift({
+          action: "Draw",
+          time: topLog.time,
+        });
+      }
+    }
+    return virtualLogs;
+  }
+
+  export function logs2board(player: M4Player.PlayerData, logs: Log[]): Board {
+    const board: Board = _.range(Game.Col).map(() => []);
+    _.eachRight(logs, (log) => {
+      const { i, j, action } = log;
+      if (log.action === "Place" && _.isFinite(i) && _.isFinite(j)) {
+        if (log.player_id === player.id) {
+          board[j!].push("You");
+        } else {
+          board[j!].push("Opponent");
+        }
+      }
+    });
+    return board;
   }
 
   export function longestLineLengths(
@@ -148,4 +223,68 @@ export namespace Game {
   }
 };
 
+export class GameServer {
 
+  private docref: FS.DocumentReference<FS.DocumentData>;
+  private unsubscriber: FS.Unsubscribe;
+
+  constructor(
+    private game: Game.Game,
+    private logs: Game.ActualLog[],
+    private hookNewHand: (newLog: Game.ActualLog, logs: Game.ActualLog[]) => void,
+  ) {
+    const db = FS.getFirestore();
+    this.docref = FS.doc(db, "match_closed", game.match_id);
+    let logn = logs.length;
+    this.unsubscriber = FS.onSnapshot(this.docref, {
+      next: (snapshot) => {
+        if (!snapshot.exists) { throw new Error("doc deleted"); }
+        const logs = snapshot.get("logs") as Game.ActualLog[];
+        if (logs.length <= logn) { return; }
+        const newLog = logs[0];
+        this.hookNewHand(newLog, logs);
+      },
+    });
+  }
+
+  async putYourHand(
+    i: number, j: number,
+  ) {
+    console.log(i, j);
+    if (!(0 <= i && i < Game.Row)) { throw new Error("out of bound"); }
+    if (!(0 <= j && j < Game.Col)) { throw new Error("out of bound"); }
+    if (Game.Row <= this.game.board[j].length) { return; }
+    this.game.board[j].push(this.game.player);
+    this.pushLog({
+      action: "Place",
+      player_id: this.game.player_id_you,
+      i, j,
+      time: new Date(),
+    });
+  }
+
+  async proceedTurn(
+    logs: Game.Log[],
+  ) {
+    await FS.updateDoc(this.docref, { logs: this.logs });
+    if (logs.length > 0 && ["Defeat", "Draw", "Resign"].includes(logs[0].action)) {
+      return;
+    }
+    this.flipPlayer();
+  }
+
+  pushLog(log: Game.ActualLog) {
+    this.logs.unshift(log);
+  }
+
+  /**
+   * プレイヤーを交代する
+   */
+  flipPlayer() {
+    if (this.game.player === "You") {
+      this.game.player = "Opponent";
+    } else if (this.game.player === "Opponent") {
+      this.game.player = "You";
+    }
+  }
+}

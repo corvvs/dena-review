@@ -1,15 +1,15 @@
 import Vue from 'vue';
 import VueRouter, { RouteConfig } from 'vue-router';
-import Home from '@/views/Home.vue';
 import Game from '@/views/Game.vue';
+import Master from '@/views/Master.vue';
 
 Vue.use(VueRouter);
 
 const routes: RouteConfig[] = [
   {
     path: '/',
-    name: 'Game',
-    component: Game,
+    name: 'Master',
+    component: Master,
   },
 ];
 
