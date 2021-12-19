@@ -11,6 +11,7 @@
           v-for="log in virtualLogs"
           :game="viewData.game"
           :log="log"
+          :isMarked="!!(markedLog && markedLog.action === log.action && markedLog.i === log.i && markedLog.j === log.j)"
           @click-log="handlers.clickLogItem"
         )
 
@@ -185,9 +186,18 @@ export default defineComponent({
           const m = _.findLastIndex(viewData.logs, (log => log.action === event.action && log.i === event.i && log.j === event.j));
           return m >= 0 ? viewData.logs.length - m : m;
         })();
-        viewData.logMarked = n;
+        if (viewData.logMarked === n) {
+          viewData.logMarked = -1;
+        } else {
+          viewData.logMarked = n;
+        }
       },
     };
+
+    const markedLog = computed(() => {
+      if (viewData.logMarked < 0) { return null; }
+      return viewData.logs[viewData.logs.length - viewData.logMarked];
+    });
 
     return {
       viewData,
@@ -204,6 +214,7 @@ export default defineComponent({
         if (viewData.logMarked === 0) { return []; }
         return _.slice(viewData.logs, viewData.logs.length - viewData.logMarked, viewData.logs.length);
       }),
+      markedLog,
       judge,
       handlers,
     };

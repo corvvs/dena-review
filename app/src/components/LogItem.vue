@@ -24,11 +24,16 @@ export default defineComponent({
       type: Object as PropType<Game.Log>,
       required: true,
     },
+    isMarked: {
+      type: Boolean,
+      required: true,
+    },
   },
 
   setup(prop: {
     game: Game.Game;
     log: Game.Log;
+    isMarked: boolean;
   }, context: SetupContext) {
     const player = computed(() => {
       if (prop.log.player_id === prop.game.playerYou.id) { return 'You'; }
@@ -43,6 +48,7 @@ export default defineComponent({
       const r: any = {};
       r[player.value] = true;
       r["clickable"] = clickable.value;
+      r["is-marked"] = prop.isMarked;
       return r;
     });
 
@@ -75,7 +81,10 @@ ColorOpponent = orange
     color ColorOpponent
   .action
     font-weight bold
+  &.is-marked  
+    background-color #ddd
   &.clickable:hover
     background-color #dfd
     cursor pointer
+
 </style>
