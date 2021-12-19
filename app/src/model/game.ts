@@ -287,6 +287,7 @@ export class GameServerSingle {
     const wnnr = Game.winner(this.game.playerYou, this.logs);
     Game.logs2virtualLogs(new Date(), this.game, this.logs, wnnr)
     if (wnnr) {
+      await this.afterGame();
       return;
     }
 
@@ -337,6 +338,19 @@ export class GameServerSingle {
     } else if (this.game.player === "Opponent") {
       this.game.player = "You";
     }
+  }
+
+  private async afterGame() {
+    const db = FS.getFirestore();
+    await FS.addDoc(FS.collection(db, FSUtil.Collection.ColClosed), {
+      created_at: new Date(),
+      expires_at: new Date(),
+      logs: this.logs,
+      registerer_id: this.game.playerYou.id,
+      registerer_name: this.game.playerYou.name,
+      opponent_id: this.game.playerOpponent.id,
+      opponent_name: this.game.playerOpponent.name,
+    });
   }
 }
 
