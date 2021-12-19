@@ -86,20 +86,21 @@ export namespace M4Match {
     // `match_opened`にドキュメントがないか探す。
 
     const db = FS.getFirestore();
-    const q = FS.query(
+    const opened = FS.query(
       FS.collection(db, FSUtil.Collection.ColOpened),
       FS.where("expires_at", ">", new Date()),
     );
     for (let i = 0; i < MaxRetry; i += 1) {
       try {
         console.log(`matching try #${i}`);
-        const result = await FS.getDocs(q);
-        const opened_docs = result.docs.filter(d => !d.get("opponent_id") && d.get("registerer_id") !== player.id);
+        const result = await FS.getDocs(opened);
+        const docsYouOpened = result.docs.filter(d => d.get("registerer_id") === player.id);
+        const docsOpen = result.docs.filter(d => !d.get("opponent_id") && d.get("registerer_id") !== player.id);
 
-        if (opened_docs.length === 0) {
-          return await getMatchSupply(player);
+        if (docsOpen.length === 0) {
+          return await getMatchSupply(player, _.first(docsYouOpened));
         } else {
-          return await getMatchDemand(player, opened_docs[0]);
+          return await getMatchDemand(player, docsOpen[0]);
         }
       } catch (e) {
         console.warn(e);
@@ -130,16 +131,37 @@ export namespace M4Match {
     );
   }
 
-  async function getMatchSupply(player: M4Player.PlayerData) {
+  async function getMatchSupply(
+    player: M4Player.PlayerData,
+    openDoc: FS.QueryDocumentSnapshot<FS.DocumentData> | undefined,
+  ) {
     const db = FS.getFirestore();
     // [ドキュメントがない場合]
     console.log("no opened doc");
     // `match_opened`にドキュメントを作成し、listenする。
     let opponent_id: string | null = null;
-    const matchOpened = makeOpenedMatch(player);
-    const matchOpenedRef = await FS.addDoc(FS.collection(db, FSUtil.Collection.ColOpened), matchOpened);
+    const { match: matchOpened, ref: matchOpenedRef } = await (async () => {
+      if (openDoc) {
+        const r = Util.u_datify_fields(openDoc.data()!);
+        const match: MatchOpened = {
+          created_at: r.created_at,
+          registerer_id: r.registerer_id,
+          registerer_name: player.name,
+          expires_at: new Date(Date.now() + Prolong),
+        };
+        console.log(match);
+        await FS.updateDoc(openDoc.ref, match);
+        return {
+          match,
+          ref: openDoc.ref,
+        }
+      } else {
+        const match = makeOpenedMatch(player);
+        const ref = await FS.addDoc(FS.collection(db, FSUtil.Collection.ColOpened), match);
+        return { match, ref };
+      }
+    })();
     console.log(`made opened doc: ${matchOpenedRef.id}`);
-
 
     const matchClosed = await FSUtil.askFirstUpdate(
       matchOpenedRef,

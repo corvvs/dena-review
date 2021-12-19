@@ -125,8 +125,7 @@ export default defineComponent({
       },
 
       clickSinglePlay: () => {
-        const opponent = M4Player.publishPlayer(true);
-        opponent.name = "Com";
+        const opponent = M4Player.publishCom();
         viewData.game = {
           match_id: "single-player",
           player_id_you: player.id,

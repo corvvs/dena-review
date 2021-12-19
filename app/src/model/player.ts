@@ -8,11 +8,28 @@ export namespace M4Player {
     com?: boolean;
   };
 
-  export function publishPlayer(com = false) {
+  function getPlayerID() {
+    const key = "mmmm_player_id";
+    if (!localStorage.getItem(key)) {
+      const id = v4();
+      localStorage.setItem(key, id);
+    }
+    return localStorage.getItem(key)!;
+  }
+
+  export function publishPlayer() {
+    return {
+      id: getPlayerID(),
+      name: "",
+      com: false,
+    };
+  }
+
+  export function publishCom() {
     return {
       id: v4(),
-      name: "",
-      com,
+      name: "Com",
+      com: true,
     };
   }
 }
