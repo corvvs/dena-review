@@ -28,17 +28,14 @@
       .panel.gameend(
         v-if="judge.winner.value"
       )
-        h3.player.You(
-          v-if="judge.winner.value === 'You'"
-        ) You Won!!
-        h3.player.Opponent(
-          v-else-if="judge.winner.value === 'Opponent'"
-        ) You Lose...
-        h3(
-          v-else-if="judge.winner.value === 'Draw'"
-        ) Draw Game.
+        GameStat(
+          :game="game"
+          :winner="judge.winner.value"
+        )
 
-        .inner-panel
+        .inner-panel(
+          v-if="!game.neutral"
+        )
           v-btn(
             @click="handlers.clickMatchAgain"
           ) Match Again
@@ -52,10 +49,11 @@ import { Game, GameServer } from '../model/game'
 import MatchUp from '../components/MatchUp.vue'
 import Board from '../components/Board.vue'
 import LogItem from '../components/LogItem.vue'
+import GameStat from '../components/GameStat.vue'
 
 export default defineComponent({
   components: {
-    MatchUp, LogItem, Board,
+    MatchUp, LogItem, Board, GameStat,
   },
 
   props: {
