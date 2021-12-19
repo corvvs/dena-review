@@ -143,7 +143,7 @@ export namespace Game {
     return board;
   }
 
-  export function longestLineLengths(
+  export function scoreBoard(
     exBoard: (Player | "empty")[][],
     playerFor: Player
   ) {
@@ -200,16 +200,27 @@ export namespace Game {
         }
       }
     }
-
     return _.range(Game.Row).map((i) => {
       return _.range(Game.Col).map((j) => {
         if (exBoard[i][j] === playerNotFor) { return 0; }
         return Math.max(
-          tables[dirUp][i][j] + tables[dirDown][i][j],
-          tables[dirLeft][i][j] + tables[dirRight][i][j],
-          tables[dirUL][i][j] + tables[dirDR][i][j],
-          tables[dirUR][i][j] + tables[dirDL][i][j],
-        ) + 1;
+          tables[dirUp][i][j] + tables[dirDown][i][j] + 1,
+          tables[dirLeft][i][j] + tables[dirRight][i][j] + 1,
+          tables[dirUL][i][j] + tables[dirDR][i][j] + 1,
+          tables[dirUR][i][j] + tables[dirDL][i][j] + 1,
+        );
+      });
+    });
+  }
+
+  export function longestLineLengths(
+    exBoard: (Player | "empty")[][],
+    playerFor: Player
+  ) {
+    const tables = scoreBoard(exBoard, playerFor);
+    return _.range(Game.Row).map((i) => {
+      return _.range(Game.Col).map((j) => {
+        return tables[i][j];
       });
     });
   }
@@ -280,17 +291,35 @@ export class GameServerSingle {
     }
 
     // Com の手番の処理を書く
-
     // ランダムハンド
-    const board = Game.logs2board(this.game.playerOpponent, this.logs);
-    const placables = _.range(board.length).filter(i => board[i].length < Game.Row);
-    const com_j = _.shuffle(placables)[0];
-    const com_i = board[com_j].length;
+    const ij = (() => {
+      const board = Game.logs2board(this.game.playerOpponent, this.logs);
+      const exBoard = Game.extendedBoard(board);
+      const yourScoreBoard = Game.scoreBoard(exBoard, "You");
+      const opponentScoreBoard = Game.scoreBoard(exBoard, "Opponent");
+      const placables = _.range(board.length)
+        .map(j => ({ i: board[j].length, j }))
+        .filter(ij => ij.i < Game.Row);
+      if (!placables) { throw new Error("no way"); }
+      const p = _(placables).filter(ij => yourScoreBoard[ij.i][ij.j] >= Game.WinLength).sample();
+      console.log(`for winning`, p);
+      if (p) { return p; }
+      const q = _(placables).filter(ij => opponentScoreBoard[ij.i][ij.j] >= Game.WinLength).sample();
+      console.log(`for defending`, q)
+      if (q) { return q; }
+      const r = _(placables).filter(ij => ij.i + 1 >= Game.Row || opponentScoreBoard[ij.i + 1][ij.j] < Game.WinLength).sample();
+      console.log(`for punishing`, r);
+      if (r) { return r; }
+      return _.shuffle(placables)[0];
+    })();
+    if (!ij) {
+      return;
+    }
     this.flipPlayer();
     this.pushLog({
       action: "Place",
       player_id: this.game.playerOpponent.id,
-      i: com_i, j: com_j,
+      i: ij.i, j: ij.j,
       time: new Date(),
     });
   }

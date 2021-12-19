@@ -149,12 +149,11 @@ export namespace M4Match {
           registerer_name: player.name,
           expires_at: new Date(Date.now() + Prolong),
         };
-        console.log(match);
         await FS.updateDoc(openDoc.ref, match);
         return {
           match,
           ref: openDoc.ref,
-        }
+        };
       } else {
         const match = makeOpenedMatch(player);
         const ref = await FS.addDoc(FS.collection(db, FSUtil.Collection.ColOpened), match);

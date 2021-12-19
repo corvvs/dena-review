@@ -80,7 +80,7 @@ export default defineComponent({
       matchingError: string;
     } = reactive({
       state: "None",
-      nickname: "",
+      nickname: localStorage.getItem("mmmm_nickname") || "",
       game: null,
       matchingError: "",
     });
@@ -99,6 +99,7 @@ export default defineComponent({
         viewData.matchingError = "";
         try {
           player.name = effectiveNickname.value || "";
+          localStorage.setItem("mmmm_nickname", player.name);
           const game = await M4Match.getMatch(player);
           viewData.game = reactive(game!) as Game.Game;
           viewData.state = "Matched";
@@ -125,6 +126,10 @@ export default defineComponent({
       },
 
       clickSinglePlay: () => {
+        if (effectiveNickname.value) {
+          player.name = effectiveNickname.value || "";
+          localStorage.setItem("mmmm_nickname", player.name);
+        }
         const opponent = M4Player.publishCom();
         viewData.game = {
           match_id: "single-player",
