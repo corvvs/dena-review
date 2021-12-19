@@ -68,10 +68,6 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
-    longestLineLength: {
-      type: Array as PropType<number[][]>,
-      required: true,
-    },
     logs: {
       type: Array as PropType<Game.ActualLog[]>,
       required: true,
@@ -111,14 +107,16 @@ export default defineComponent({
       });
     });
 
+    const board = computed(() => Game.logs2board(prop.game.playerYou, prop.logs));
+
     /**
      * セルの状態
      */
     const cellOccupations = computed(() => {
       return _.range(Game.Row).map((i) => {
         return _.range(Game.Col).map((j) => {
-          if (i < prop.game.board[j].length) {
-            return prop.game.board[j][i];
+          if (i < board.value[j].length) {
+            return board.value[j][i];
           }
           return "empty";
         });
@@ -136,7 +134,7 @@ export default defineComponent({
         return _.range(Game.Col).map((j) => {
           if (!prop.ongoing) { return false; }
           if (prop.game.neutral) { return false; }
-          return prop.game.board[j].length == i;
+          return board.value[j].length == i;
         });
       });
     });
@@ -212,10 +210,44 @@ export default defineComponent({
       },
     };
 
+    /**
+     * フルサイズに拡張したgame.board
+     * 空きマスにはemptyが置かれている。
+     */
+    const extendedBoard = computed(() => {
+      return _.range(Game.Row).map((i) => {
+        return _.range(Game.Col).map((j) => {
+          const occupation = cellOccupations.value[i][j];
+          return occupation;
+        });
+      });
+    });
+
+    const longestLineLengthYou = computed(() => {
+      const exBoard = extendedBoard.value;
+      return Game.longestLineLengths(exBoard, "You");
+    });
+    const longestLineLengthOpponent = computed(() => {
+      const exBoard = extendedBoard.value;
+      return Game.longestLineLengths(exBoard, "Opponent");
+    });
+
+    /**
+     * 当該セルが敵の色の場合は0,
+     * そうでない場合、当該セルが自分の色だと仮定した時の、最大の連続並びの長さ
+     * (当該セルが本当に自分の色であり、かつこの値が4以上の場合、ゲームに勝利していることになる)
+     */
+    const longestLineLength = computed(() => {
+      const playerFor = prop.game.player;
+      return playerFor === "You" ? longestLineLengthYou.value : longestLineLengthOpponent.value;
+    });
+
+
     return {
       cell_geo,
       text_geo,
       handlers,
+      longestLineLength,
     };
   },
 });

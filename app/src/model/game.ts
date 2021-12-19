@@ -92,9 +92,6 @@ export namespace Game {
     };
   }
 
-  export function startGame(gameLogs: Log[]) {
-  }
-
   export function counterPlayer(player: Player): Player {
     return player === "You" ? "Opponent" : "You";
   }

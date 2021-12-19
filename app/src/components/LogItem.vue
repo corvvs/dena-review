@@ -1,6 +1,7 @@
 <template lang="pug">
 .logitem(
-  :class="player"
+  :class="cssclass"
+  @click="handlers.click(log)"
 )
   .action {{ log.action }}
   .at(
@@ -34,8 +35,26 @@ export default defineComponent({
       if (prop.log.player_id === prop.game.playerOpponent.id) { return 'Opponent'; }
       return '';
     });
+    const clickable = computed(() => {
+      if (!prop.game.neutral) { return false }
+      return (prop.log.action === 'GameStart' || prop.log.action === 'Place')
+    });
+    const cssclass = computed(() => {
+      const r: any = {};
+      r[player.value] = true;
+      r["clickable"] = clickable.value;
+      return r;
+    });
+
     return {
       player,
+      cssclass,
+      handlers: {
+        click: (log: Game.Log) => {
+          if (!clickable.value) { return; }
+          context.emit("click-log", log);
+        },
+      },
     };
   }
 });
@@ -56,6 +75,7 @@ ColorOpponent = orange
     color ColorOpponent
   .action
     font-weight bold
-  &:hover
+  &.clickable:hover
     background-color #dfd
+    cursor pointer
 </style>

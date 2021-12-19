@@ -2,27 +2,25 @@
 .game
   .body
     .info
-      .header
-        h3 MMMM
       MatchUp.matchup(
-        :game="gameData.game"
+        :game="viewData.game"
         :winner="judge.winner.value || ''"
       )
       .game-logs
         LogItem.logitem(
           v-for="log in virtualLogs"
-          :game="gameData.game"
+          :game="viewData.game"
           :log="log"
+          @click-log="handlers.clickLogItem"
         )
 
     .board
       .match-id
         h3 Match ID: {{ game.match_id }}
       Board(
-        :game="gameData.game"
-        :ongoing="!judge.winner.value && gameData.game.player === 'You'"
-        :longestLineLength="longestLineLength"
-        :logs="gameData.logs"
+        :game="viewData.game"
+        :ongoing="!judge.winner.value && viewData.game.player === 'You'"
+        :logs="boardLogs"
         @place-cell="handlers.clickCell"
       )
       
@@ -75,37 +73,39 @@ export default defineComponent({
     game: Game.Game;
   }, context: SetupContext) {
 
-    const initGameData = () => {
+    const initViewData = () => {
       return {
         game: prop.game,
         logs: reactive([]),
+        logMarked: -1,
       };
     };
 
-    const gameData: {
+    const viewData: {
       game: Game.Game,
       logs: Game.ActualLog[];
-    } = initGameData();
+      logMarked: number;
+    } = initViewData();
 
     const gameServer = new GameServer(
       prop.game,
-      gameData.logs,
+      viewData.logs,
       (newLog, logs) => {
       console.log(newLog, logs, prop.game.playerYou.id, prop.game.playerOpponent.id);
-      gameData.logs.splice(0, gameData.logs.length, ...logs);
+      viewData.logs.splice(0, viewData.logs.length, ...logs);
       const board = Game.logs2board(prop.game.playerYou, logs);
-      gameData.game.board.splice(0, gameData.game.board.length, ...board);
+      viewData.game.board.splice(0, viewData.game.board.length, ...board);
       if (newLog.action === "Place") {
         if (newLog.player_id === prop.game.playerOpponent.id) {
-          if (gameData.game.player !== "You") {
+          if (viewData.game.player !== "You") {
             console.log("flipped")
-            gameData.game.player = "You";
+            viewData.game.player = "You";
           } else {
             console.log("same?")
           }
         }
       }
-      console.log(gameData.game, gameData.game.player);
+      console.log(viewData.game, viewData.game.player);
     });
 
     /**
@@ -114,8 +114,8 @@ export default defineComponent({
     const cellOccupations = computed(() => {
       return _.range(Game.Row).map((i) => {
         return _.range(Game.Col).map((j) => {
-          if (i < gameData.game.board[j].length) {
-            return gameData.game.board[j][i];
+          if (i < viewData.game.board[j].length) {
+            return viewData.game.board[j][i];
           }
           return "empty";
         });
@@ -142,16 +142,6 @@ export default defineComponent({
     const longestLineLengthOpponent = computed(() => {
       const exBoard = extendedBoard.value;
       return Game.longestLineLengths(exBoard, "Opponent");
-    });
-
-    /**
-     * 当該セルが敵の色の場合は0,
-     * そうでない場合、当該セルが自分の色だと仮定した時の、最大の連続並びの長さ
-     * (当該セルが本当に自分の色であり、かつこの値が4以上の場合、ゲームに勝利していることになる)
-     */
-    const longestLineLength = computed(() => {
-      const playerFor = gameData.game.player;
-      return playerFor === "You" ? longestLineLengthYou.value : longestLineLengthOpponent.value;
     });
 
     const willYouWon = computed(() => Game.verdictWon(extendedBoard.value, longestLineLengthYou.value));
@@ -187,20 +177,33 @@ export default defineComponent({
       clickMatchAgain: () => {
         context.emit("match-again");
       },
+
+      clickLogItem: (event: Game.Log) => {
+        if (event.action !== "GameStart" && event.action !== "Place") { return }
+        const n = (() => {
+          if (event.action === "GameStart") { return 0; }
+          const m = _.findLastIndex(viewData.logs, (log => log.action === event.action && log.i === event.i && log.j === event.j));
+          return m >= 0 ? viewData.logs.length - m : m;
+        })();
+        viewData.logMarked = n;
+      },
     };
 
-    Game.startGame(gameData.logs);
     return {
-      gameData,
+      viewData,
       virtualLogs: computed(() => {
         return Game.logs2virtualLogs(
           new Date(),
-          gameData.game,
-          gameData.logs,
+          viewData.game,
+          viewData.logs,
           judge.winner.value,
         );
       }),
-      longestLineLength,
+      boardLogs: computed(() => {
+        if (viewData.logMarked < 0) { return viewData.logs; }
+        if (viewData.logMarked === 0) { return []; }
+        return _.slice(viewData.logs, viewData.logs.length - viewData.logMarked, viewData.logs.length);
+      }),
       judge,
       handlers,
     };
