@@ -13,12 +13,12 @@
       v-for="game in viewData.games"
       @click="handlers.clickItem(game)"
     )
-      .id {{ game.match_id }}
-      .player.You {{ game.playerYou.name }}
-      .player.vs vs
-      .player.Opponent {{ game.playerOpponent.name }}
-      .time
-        | {{ game.expires_at }}
+      .id               {{ game.match_id }}
+      .player.You       {{ game.playerYou.name }}
+      .player.vs        vs
+      .player.Opponent  {{ game.playerOpponent.name }}
+      .hands            {{ game.logs.length }} hands
+      .time             {{ game.expires_at }}
 
 </template>
 
@@ -79,6 +79,10 @@ export default defineComponent({
     flex-grow 1
     flex-shrink 1
     overflow-y scroll
+    justify-content center
+    align-items center
+    align-content center
+    justify-items center
     .game-item
       display flex
       flex-direction row
@@ -102,6 +106,9 @@ export default defineComponent({
           font-weight bold
         &.vs
           flex-basis 2em
+      .hands
+        padding 4px
+        flex-basis 6em
       .time
         padding 4px
         flex-grow 1

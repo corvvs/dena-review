@@ -10,7 +10,11 @@
     v-else
   )
     .title
-      h2 M M M M
+      h1
+        span(:class="mmmm[0]") M 
+        span(:class="mmmm[1]") M 
+        span(:class="mmmm[2]") M 
+        span(:class="mmmm[3]") M
     .enc
       .nickname
         v-text-field(
@@ -45,7 +49,7 @@
 </template>
 
 <script lang="ts">
-import _ from 'lodash';
+import _, { random } from 'lodash';
 import { reactive, ref, Ref, SetupContext, defineComponent, onMounted, PropType, watch, computed } from '@vue/composition-api';
 import { Game } from '../model/game'
 import { M4Player } from '../model/player'
@@ -120,12 +124,20 @@ export default defineComponent({
       viewData,
       effectiveNickname,
       handlers,
+      mmmm: (() => {
+        return ["0011", "0101", "1001", "0110", "1010", "1100"][Math.floor(Math.random() * 6)]
+          .split("")
+          .map(s => s === "0" ? "You" : "Opponent");
+      })(),
     };
   },
 });
 </script>
 
 <style lang="stylus" scoped>
+ColorYou = royalblue
+ColorOpponent = orange
+
 .master
   height 100%
   display flex
@@ -143,4 +155,9 @@ export default defineComponent({
       width 24em;
   .error
     color red
+
+  .You
+    color ColorYou
+  .Opponent
+    color ColorOpponent
 </style>

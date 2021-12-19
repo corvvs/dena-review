@@ -262,6 +262,7 @@ export namespace M4Match {
             player: "You",
             neutral: true,
             expires_at: r.expires_at,
+            logs: r.logs,
           } as any;
         });
         receiver(games);
