@@ -5,12 +5,14 @@ export namespace M4Player {
   export type PlayerData = {
     id: string;
     name: string;
+    com?: boolean;
   };
 
-  export function publishPlayer() {
+  export function publishPlayer(com = false) {
     return {
       id: v4(),
       name: "",
+      com,
     };
   }
 }

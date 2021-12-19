@@ -121,7 +121,7 @@ export namespace M4Match {
       id: doc.get("opponent_id")!,
       name: doc.get("opponent_name")!,
     };
-    return Game.init2pGame(
+    return Game.initPVPGame(
       doc.id,
       playerYou,
       playerOpponent,
@@ -179,7 +179,7 @@ export namespace M4Match {
     await FS.deleteDoc(matchOpenedRef);
     
     // 5. ゲーム開始
-    return Game.init2pGame(
+    return Game.initPVPGame(
       matchClosedRef.id,
       player,
       {
@@ -220,7 +220,7 @@ export namespace M4Match {
       console.log("failed to match up");
       return null;
     }
-    return Game.init2pGame(
+    return Game.initPVPGame(
       closedMatch.id,
       player,
       {

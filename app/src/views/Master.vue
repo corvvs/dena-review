@@ -46,6 +46,11 @@
       v-btn(
         @click="handlers.clickWatcher"
       ) 観戦する
+    .single-play
+      v-btn(
+        :disabled="!effectiveNickname || viewData.state !== 'None'"
+        @click="handlers.clickSinglePlay"
+      ) シングルプレイ
 </template>
 
 <script lang="ts">
@@ -118,6 +123,21 @@ export default defineComponent({
       clickWatcher: () => {
         Router.push('w');
       },
+
+      clickSinglePlay: () => {
+        const opponent = M4Player.publishPlayer(true);
+        opponent.name = "Com";
+        viewData.game = {
+          match_id: "single-player",
+          player_id_you: player.id,
+          playerYou: player,
+          player_id_opponent: opponent.id,
+          playerOpponent: opponent,
+          player: "You",
+          neutral: false,
+        }
+        viewData.state = "Matched";
+      },
     };
     return {
       player,
@@ -156,8 +176,12 @@ ColorOpponent = orange
   .error
     color red
 
+  .watcher, .single-play
+    padding 8px
+
   .You
     color ColorYou
   .Opponent
     color ColorOpponent
+
 </style>
