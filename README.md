@@ -6,7 +6,7 @@
 ## What?
 
 ネットワーク対戦型重力つき四目並べWebアプリです。
-https://moku.corvvs.dev/
+https://mmmm.corvvs.dev/
 
 ## How to Play
 
