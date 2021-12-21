@@ -2,44 +2,40 @@
 .game
   .body
     .info
-      .header
-        h3 MMMM
       MatchUp.matchup(
-        :game="gameData.game"
+        :game="viewData.game"
         :winner="judge.winner.value || ''"
       )
       .game-logs
         LogItem.logitem(
           v-for="log in virtualLogs"
-          :game="gameData.game"
+          :game="viewData.game"
           :log="log"
+          :isMarked="!!(markedLog && markedLog.action === log.action && markedLog.i === log.i && markedLog.j === log.j)"
+          @click-log="handlers.clickLogItem"
         )
 
     .board
       .match-id
-        h3 Match ID: {{ game.match_id }}
+        h3 Match ID: {{ viewData.game.match_id }}
       Board(
-        :game="gameData.game"
-        :ongoing="!judge.winner.value && gameData.game.player === 'You'"
-        :longestLineLength="longestLineLength"
-        :logs="gameData.logs"
+        :game="viewData.game"
+        :ongoing="!judge.winner.value && viewData.game.player === 'You'"
+        :logs="boardLogs"
         @place-cell="handlers.clickCell"
       )
       
       .panel.gameend(
         v-if="judge.winner.value"
       )
-        h3.player.You(
-          v-if="judge.winner.value === 'You'"
-        ) You Won!!
-        h3.player.Opponent(
-          v-else-if="judge.winner.value === 'Opponent'"
-        ) You Lose...
-        h3(
-          v-else-if="judge.winner.value === 'Draw'"
-        ) Draw Game.
+        GameStat(
+          :game="viewData.game"
+          :winner="judge.winner.value"
+        )
 
-        .inner-panel
+        .inner-panel(
+          v-if="!viewData.game.neutral"
+        )
           v-btn(
             @click="handlers.clickMatchAgain"
           ) Match Again
@@ -49,14 +45,15 @@
 import _ from 'lodash';
 import { reactive, ref, Ref, SetupContext, defineComponent, onMounted, PropType, watch, computed } from '@vue/composition-api';
 import { M4Player } from '../model/player'
-import { Game, GameServer } from '../model/game'
+import { Game, GameServer, GameServerPVP, GameServerSingle } from '../model/game'
 import MatchUp from '../components/MatchUp.vue'
 import Board from '../components/Board.vue'
 import LogItem from '../components/LogItem.vue'
+import GameStat from '../components/GameStat.vue'
 
 export default defineComponent({
   components: {
-    MatchUp, LogItem, Board,
+    MatchUp, LogItem, Board, GameStat,
   },
 
   props: {
@@ -75,96 +72,86 @@ export default defineComponent({
     game: Game.Game;
   }, context: SetupContext) {
 
-    const initGameData = () => {
+    const makeGameServer: (game: Game.Game, logs: Game.ActualLog[]) => GameServer = (game: Game.Game, logs: Game.ActualLog[]) => {
+      if (game.playerOpponent.com) {
+        return new GameServerSingle(
+          game,
+          logs,
+          (newLog, allLogs) => {
+            console.log(newLog, logs, game.playerYou.id, game.playerOpponent.id);
+            logs.splice(0, logs.length, ...allLogs);
+            if (newLog.action === "Place") {
+              if (newLog.player_id === game.playerOpponent.id) {
+                if (game.player !== "You") {
+                  console.log("flipped")
+                  game.player = "You";
+                } else {
+                  console.log("same?")
+                }
+              }
+            }
+            console.log(game, game.player);
+          },
+        )
+      }
+      return new GameServerPVP(
+        game,
+        logs,
+        (newLog, allLogs) => {
+          console.log(newLog, logs, game.playerYou.id, game.playerOpponent.id);
+          logs.splice(0, logs.length, ...allLogs);
+          if (newLog.action === "Place") {
+            if (newLog.player_id === game.playerOpponent.id) {
+              if (game.player !== "You") {
+                console.log("flipped")
+                game.player = "You";
+              } else {
+                console.log("same?")
+              }
+            }
+          }
+          console.log(game, game.player);
+        },
+      );
+    };
+
+    const initViewData = () => {
+      const game = prop.game;
+      const logs: Game.ActualLog[] = reactive([]);
       return {
-        game: prop.game,
-        logs: reactive([]),
+        game,
+        logs,
+        logMarked: -1,
+        server: makeGameServer(game, logs),
       };
     };
 
-    const gameData: {
+    const viewData: {
       game: Game.Game,
       logs: Game.ActualLog[];
-    } = initGameData();
+      logMarked: number;
+      server: GameServer,
+    } = initViewData();
 
-    const gameServer = new GameServer(
-      prop.game,
-      gameData.logs,
-      (newLog, logs) => {
-      console.log(newLog, logs, prop.game.playerYou.id, prop.game.playerOpponent.id);
-      gameData.logs.splice(0, gameData.logs.length, ...logs);
-      const board = Game.logs2board(prop.game.playerYou, logs);
-      gameData.game.board.splice(0, gameData.game.board.length, ...board);
-      if (newLog.action === "Place") {
-        if (newLog.player_id === prop.game.playerOpponent.id) {
-          if (gameData.game.player !== "You") {
-            console.log("flipped")
-            gameData.game.player = "You";
-          } else {
-            console.log("same?")
-          }
-        }
-      }
-      console.log(gameData.game, gameData.game.player);
-    });
-
-    /**
-     * セルの状態
-     */
-    const cellOccupations = computed(() => {
-      return _.range(Game.Row).map((i) => {
-        return _.range(Game.Col).map((j) => {
-          if (i < gameData.game.board[j].length) {
-            return gameData.game.board[j][i];
-          }
-          return "empty";
-        });
-      });
-    });
+    const board = computed(() => Game.logs2board(viewData.game.playerYou, viewData.logs));
 
     /**
      * フルサイズに拡張したgame.board
      * 空きマスにはemptyが置かれている。
      */
-    const extendedBoard = computed(() => {
-      return _.range(Game.Row).map((i) => {
-        return _.range(Game.Col).map((j) => {
-          const occupation = cellOccupations.value[i][j];
-          return occupation;
-        });
-      });
-    });
+    const extendedBoard = computed(() => Game.extendedBoard(board.value));
 
-    const longestLineLengthYou = computed(() => {
-      const exBoard = extendedBoard.value;
-      return Game.longestLineLengths(exBoard, "You");
-    });
-    const longestLineLengthOpponent = computed(() => {
-      const exBoard = extendedBoard.value;
-      return Game.longestLineLengths(exBoard, "Opponent");
-    });
-
-    /**
-     * 当該セルが敵の色の場合は0,
-     * そうでない場合、当該セルが自分の色だと仮定した時の、最大の連続並びの長さ
-     * (当該セルが本当に自分の色であり、かつこの値が4以上の場合、ゲームに勝利していることになる)
-     */
-    const longestLineLength = computed(() => {
-      const playerFor = gameData.game.player;
-      return playerFor === "You" ? longestLineLengthYou.value : longestLineLengthOpponent.value;
-    });
-
-    const willYouWon = computed(() => Game.verdictWon(extendedBoard.value, longestLineLengthYou.value));
-    const willOpponentWon = computed(() => Game.verdictWon(extendedBoard.value, longestLineLengthOpponent.value));
-    const noVacant = computed(() => !extendedBoard.value.find((row) => row.find((p) => p === "empty")));
     const judge = {
-      willYouWon,
-      willOpponentWon,
-      noVacant,
       winner: computed(() => {
-        if (willYouWon.value) { return "You"; }
-        if (willOpponentWon.value) { return "Opponent"; }
-        if (noVacant.value) { return "Draw"; }
+        const exBoard = extendedBoard.value;
+        const longestLineLengthYou = Game.longestLineLengths(exBoard, "You");
+        const longestLineLengthOpponent = Game.longestLineLengths(exBoard, "Opponent");
+        const willYouWon = Game.verdictWon(exBoard, longestLineLengthYou);
+        const willOpponentWon = Game.verdictWon(exBoard, longestLineLengthOpponent);
+        const noVacant = !extendedBoard.value.find((row) => row.find((p) => p === "empty"));
+        if (willYouWon) { return "You"; }
+        if (willOpponentWon) { return "Opponent"; }
+        if (noVacant) { return "Draw"; }
         return null;
       }),
     };
@@ -174,7 +161,7 @@ export default defineComponent({
        * コマを置く
        */
       placePiece: async function(i: number, j: number) {
-        await gameServer.putYourHand(i, j);
+        await viewData.server.putYourHand(i, j);
       },
     };
 
@@ -187,20 +174,43 @@ export default defineComponent({
       clickMatchAgain: () => {
         context.emit("match-again");
       },
+
+      clickLogItem: (event: Game.Log) => {
+        if (event.action !== "GameStart" && event.action !== "Place") { return }
+        const n = (() => {
+          if (event.action === "GameStart") { return 0; }
+          const m = _.findLastIndex(viewData.logs, (log => log.action === event.action && log.i === event.i && log.j === event.j));
+          return m >= 0 ? viewData.logs.length - m : m;
+        })();
+        if (viewData.logMarked === n) {
+          viewData.logMarked = -1;
+        } else {
+          viewData.logMarked = n;
+        }
+      },
     };
 
-    Game.startGame(gameData.logs);
+    const markedLog = computed(() => {
+      if (viewData.logMarked < 0) { return null; }
+      return viewData.logs[viewData.logs.length - viewData.logMarked];
+    });
+
     return {
-      gameData,
+      viewData,
       virtualLogs: computed(() => {
         return Game.logs2virtualLogs(
           new Date(),
-          gameData.game,
-          gameData.logs,
+          viewData.game,
+          viewData.logs,
           judge.winner.value,
         );
       }),
-      longestLineLength,
+      boardLogs: computed(() => {
+        if (viewData.logMarked < 0) { return viewData.logs; }
+        if (viewData.logMarked === 0) { return []; }
+        return _.slice(viewData.logs, viewData.logs.length - viewData.logMarked, viewData.logs.length);
+      }),
+      markedLog,
       judge,
       handlers,
     };

@@ -1,6 +1,7 @@
 <template lang="pug">
 .logitem(
-  :class="player"
+  :class="cssclass"
+  @click="handlers.click(log)"
 )
   .action {{ log.action }}
   .at(
@@ -23,19 +24,43 @@ export default defineComponent({
       type: Object as PropType<Game.Log>,
       required: true,
     },
+    isMarked: {
+      type: Boolean,
+      required: true,
+    },
   },
 
   setup(prop: {
     game: Game.Game;
     log: Game.Log;
+    isMarked: boolean;
   }, context: SetupContext) {
     const player = computed(() => {
       if (prop.log.player_id === prop.game.playerYou.id) { return 'You'; }
       if (prop.log.player_id === prop.game.playerOpponent.id) { return 'Opponent'; }
       return '';
     });
+    const clickable = computed(() => {
+      if (!prop.game.neutral) { return false }
+      return (prop.log.action === 'GameStart' || prop.log.action === 'Place')
+    });
+    const cssclass = computed(() => {
+      const r: any = {};
+      r[player.value] = true;
+      r["clickable"] = clickable.value;
+      r["is-marked"] = prop.isMarked;
+      return r;
+    });
+
     return {
       player,
+      cssclass,
+      handlers: {
+        click: (log: Game.Log) => {
+          if (!clickable.value) { return; }
+          context.emit("click-log", log);
+        },
+      },
     };
   }
 });
@@ -56,6 +81,10 @@ ColorOpponent = orange
     color ColorOpponent
   .action
     font-weight bold
-  &:hover
+  &.is-marked  
+    background-color #ddd
+  &.clickable:hover
     background-color #dfd
+    cursor pointer
+
 </style>

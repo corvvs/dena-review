@@ -4,6 +4,8 @@ import { M4Player } from '../model/player'
 import * as FS from "firebase/firestore";
 import * as FSUtil from '../utils/firestore';
 
+const Prolong = 60 * 1000;
+
 export namespace Game {
   export const Row = 6;
   export const Col = 7;
@@ -58,22 +60,20 @@ export namespace Game {
 
     playerYou: M4Player.PlayerData,
     playerOpponent: M4Player.PlayerData,
-
-    /**
-     * 盤面 列 -> 行
-     */
-    board: Board;
     /**
      * 今手番であるプレイヤー
      */
     player: Player;
+
+    neutral: boolean;
   };
 
-  export function init2pGame(
+  export function initPVPGame(
     match_id: string,
     player: M4Player.PlayerData,
     opponent: M4Player.PlayerData,
     yourTurn: boolean,
+    neutral: boolean,
   ): Game {
     return {
       match_id,
@@ -81,12 +81,9 @@ export namespace Game {
       player_id_opponent: opponent.id,
       playerYou: player,
       playerOpponent: opponent,
-      board: _.range(Col).map(() => []),
       player: yourTurn ? "You" : "Opponent",
+      neutral,
     };
-  }
-
-  export function startGame(gameLogs: Log[]) {
   }
 
   export function counterPlayer(player: Player): Player {
@@ -135,7 +132,7 @@ export namespace Game {
     const board: Board = _.range(Game.Col).map(() => []);
     _.eachRight(logs, (log) => {
       const { i, j, action } = log;
-      if (log.action === "Place" && _.isFinite(i) && _.isFinite(j)) {
+      if (action === "Place" && _.isFinite(i) && _.isFinite(j)) {
         if (log.player_id === player.id) {
           board[j!].push("You");
         } else {
@@ -146,7 +143,7 @@ export namespace Game {
     return board;
   }
 
-  export function longestLineLengths(
+  export function scoreBoard(
     exBoard: (Player | "empty")[][],
     playerFor: Player
   ) {
@@ -203,16 +200,27 @@ export namespace Game {
         }
       }
     }
-
     return _.range(Game.Row).map((i) => {
       return _.range(Game.Col).map((j) => {
         if (exBoard[i][j] === playerNotFor) { return 0; }
         return Math.max(
-          tables[dirUp][i][j] + tables[dirDown][i][j],
-          tables[dirLeft][i][j] + tables[dirRight][i][j],
-          tables[dirUL][i][j] + tables[dirDR][i][j],
-          tables[dirUR][i][j] + tables[dirDL][i][j],
-        ) + 1;
+          tables[dirUp][i][j] + tables[dirDown][i][j] + 1,
+          tables[dirLeft][i][j] + tables[dirRight][i][j] + 1,
+          tables[dirUL][i][j] + tables[dirDR][i][j] + 1,
+          tables[dirUR][i][j] + tables[dirDL][i][j] + 1,
+        );
+      });
+    });
+  }
+
+  export function longestLineLengths(
+    exBoard: (Player | "empty")[][],
+    playerFor: Player
+  ) {
+    const tables = scoreBoard(exBoard, playerFor);
+    return _.range(Game.Row).map((i) => {
+      return _.range(Game.Col).map((j) => {
+        return tables[i][j];
       });
     });
   }
@@ -222,9 +230,131 @@ export namespace Game {
       return extendedBoard[i][j] !== "empty" && n >= WinLength;
     }));
   }
+
+  export function extendedBoard(board: Board) {
+    return _.range(Game.Row).map((i) => {
+      return _.range(Game.Col).map((j) => {
+        const occupation = i < board[j].length ? board[j][i] : "empty";
+        return occupation;
+      });
+    });
+  }
+
+  export function winner(player: M4Player.PlayerData, logs: Game.ActualLog[]) {
+    const board = logs2board(player, logs);
+    const exBoard = extendedBoard(board);
+    const longestLineLengthYou = Game.longestLineLengths(exBoard, "You");
+    const longestLineLengthOpponent = Game.longestLineLengths(exBoard, "Opponent");
+    const willYouWon = Game.verdictWon(exBoard, longestLineLengthYou);
+    const willOpponentWon = Game.verdictWon(exBoard, longestLineLengthOpponent);
+    const noVacant = !exBoard.find((row) => row.find((p) => p === "empty"));
+    if (willYouWon) { return "You"; }
+    if (willOpponentWon) { return "Opponent"; }
+    if (noVacant) { return "Draw"; }
+    return null;
+  }
 };
 
-export class GameServer {
+export type GameServer = {
+  putYourHand: (
+    i: number, j: number,
+  ) => Promise<void>;
+};
+
+export class GameServerSingle {
+  constructor(
+    private game: Game.Game,
+    private logs: Game.ActualLog[],
+    private hookNewHand: (newLog: Game.ActualLog, logs: Game.ActualLog[]) => void,
+  ) {
+    console.log("Single Player");
+    
+  }
+
+  async putYourHand(
+    i: number, j: number,
+  ) {
+    if (this.game.neutral) { return; }
+    if (!(0 <= i && i < Game.Row)) { throw new Error("out of bound"); }
+    if (!(0 <= j && j < Game.Col)) { throw new Error("out of bound"); }
+    this.flipPlayer();
+    this.pushLog({
+      action: "Place",
+      player_id: this.game.player_id_you,
+      i, j,
+      time: new Date(),
+    });
+    const wnnr = Game.winner(this.game.playerYou, this.logs);
+    Game.logs2virtualLogs(new Date(), this.game, this.logs, wnnr)
+    if (wnnr) {
+      await this.afterGame();
+      return;
+    }
+
+    // Com の手番の処理を書く
+    // ランダムハンド
+    const ij = (() => {
+      const board = Game.logs2board(this.game.playerOpponent, this.logs);
+      const exBoard = Game.extendedBoard(board);
+      const yourScoreBoard = Game.scoreBoard(exBoard, "You");
+      const opponentScoreBoard = Game.scoreBoard(exBoard, "Opponent");
+      const placables = _.range(board.length)
+        .map(j => ({ i: board[j].length, j }))
+        .filter(ij => ij.i < Game.Row);
+      if (!placables) { throw new Error("no way"); }
+      const p = _(placables).filter(ij => yourScoreBoard[ij.i][ij.j] >= Game.WinLength).sample();
+      console.log(`for winning`, p);
+      if (p) { return p; }
+      const q = _(placables).filter(ij => opponentScoreBoard[ij.i][ij.j] >= Game.WinLength).sample();
+      console.log(`for defending`, q)
+      if (q) { return q; }
+      const r = _(placables).filter(ij => ij.i + 1 >= Game.Row || opponentScoreBoard[ij.i + 1][ij.j] < Game.WinLength).sample();
+      console.log(`for punishing`, r);
+      if (r) { return r; }
+      return _.shuffle(placables)[0];
+    })();
+    if (!ij) {
+      return;
+    }
+    this.flipPlayer();
+    this.pushLog({
+      action: "Place",
+      player_id: this.game.playerOpponent.id,
+      i: ij.i, j: ij.j,
+      time: new Date(),
+    });
+  }
+
+  private pushLog(log: Game.ActualLog) {
+    this.logs.unshift(log);
+  }
+
+  /**
+   * プレイヤーを交代する
+   */
+  private flipPlayer() {
+    if (this.game.player === "You") {
+      this.game.player = "Opponent";
+    } else if (this.game.player === "Opponent") {
+      this.game.player = "You";
+    }
+  }
+
+  private async afterGame() {
+    const db = FS.getFirestore();
+    await FS.addDoc(FS.collection(db, FSUtil.Collection.ColClosed), {
+      created_at: new Date(),
+      expires_at: new Date(),
+      logs: this.logs,
+      registerer_id: this.game.playerYou.id,
+      registerer_name: this.game.playerYou.name,
+      opponent_id: this.game.playerOpponent.id,
+      opponent_name: this.game.playerOpponent.name,
+    });
+  }
+}
+
+export class GameServerPVP {
 
   private docref: FS.DocumentReference<FS.DocumentData>;
   private unsubscriber: FS.Unsubscribe;
@@ -234,6 +364,7 @@ export class GameServer {
     private logs: Game.ActualLog[],
     private hookNewHand: (newLog: Game.ActualLog, logs: Game.ActualLog[]) => void,
   ) {
+    console.log("PVP");
     const db = FS.getFirestore();
     this.docref = FS.doc(db, FSUtil.Collection.ColClosed, game.match_id);
     let logn = logs.length;
@@ -251,10 +382,9 @@ export class GameServer {
   async putYourHand(
     i: number, j: number,
   ) {
-    console.log(i, j);
+    if (this.game.neutral) { return; }
     if (!(0 <= i && i < Game.Row)) { throw new Error("out of bound"); }
     if (!(0 <= j && j < Game.Col)) { throw new Error("out of bound"); }
-    if (Game.Row <= this.game.board[j].length) { return; }
     this.flipPlayer();
     this.pushLog({
       action: "Place",
@@ -262,20 +392,23 @@ export class GameServer {
       i, j,
       time: new Date(),
     });
-    await FS.updateDoc(this.docref, { logs: this.logs });
+    await FS.updateDoc(this.docref, {
+      logs: this.logs,
+      expires_at: new Date(Date.now() + Prolong),
+    });
     if (this.logs.length > 0 && ["Defeat", "Draw", "Resign"].includes(this.logs[0].action)) {
       return;
     }
   }
 
-  pushLog(log: Game.ActualLog) {
+  private pushLog(log: Game.ActualLog) {
     this.logs.unshift(log);
   }
 
   /**
    * プレイヤーを交代する
    */
-  flipPlayer() {
+  private flipPlayer() {
     if (this.game.player === "You") {
       this.game.player = "Opponent";
     } else if (this.game.player === "Opponent") {

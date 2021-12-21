@@ -2,12 +2,12 @@
 .matchup(
 )
   .player.round.You(
-    :class="(winner && winner !== 'You') ? 'lose' : game.player === 'You' ? 'turn' : ''"
+    :class="cssclass.you"
   )
     span.name {{ game.playerYou.name || "You" }}
   .vs vs
   .player.round.Opponent(
-    :class="(winner && winner !== 'Opponent') ? 'lose' : game.player === 'Opponent' ? 'turn' : ''"
+    :class="cssclass.opponent"
   )
     span.name {{ game.playerOpponent.name || "Opponent" }}
 </template>
@@ -34,7 +34,24 @@ export default defineComponent({
     winner: string | null;
   }, context: SetupContext) {
 
+    const cssclass = computed(() => {
+      const you: any = { You: true };
+      const opponent: any = { Opponent: true };
+      if (!prop.winner) {
+        you.turn = prop.game.player === "You";
+        opponent.turn = prop.game.player === "Opponent";
+      } else if (prop.winner === "You") {
+        opponent.lose = true;
+      } else if (prop.winner === "Opponent") {
+        you.lose = true;
+      }
+      return {
+        you,
+        opponent,
+      };
+    });
     return {
+      cssclass,
     };
   }
 });

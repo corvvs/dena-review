@@ -1,6 +1,7 @@
 import _ from 'lodash';
 import * as FS from "firebase/firestore";
 import * as FSUtil from '../utils/firestore';
+import * as Util from '../utils/util';
 import { M4Player } from '../model/player';
 import { Game } from '../model/game';
 
@@ -85,20 +86,21 @@ export namespace M4Match {
     // `match_opened`にドキュメントがないか探す。
 
     const db = FS.getFirestore();
-    const q = FS.query(
+    const opened = FS.query(
       FS.collection(db, FSUtil.Collection.ColOpened),
       FS.where("expires_at", ">", new Date()),
     );
     for (let i = 0; i < MaxRetry; i += 1) {
       try {
         console.log(`matching try #${i}`);
-        const result = await FS.getDocs(q);
-        const opened_docs = result.docs.filter(d => !d.get("opponent_id") && d.get("registerer_id") !== player.id);
+        const result = await FS.getDocs(opened);
+        const docsYouOpened = result.docs.filter(d => d.get("registerer_id") === player.id);
+        const docsOpen = result.docs.filter(d => !d.get("opponent_id") && d.get("registerer_id") !== player.id);
 
-        if (opened_docs.length === 0) {
-          return await getMatchSupply(player);
+        if (docsOpen.length === 0) {
+          return await getMatchSupply(player, _.first(docsYouOpened));
         } else {
-          return await getMatchDemand(player, opened_docs[0]);
+          return await getMatchDemand(player, docsOpen[0]);
         }
       } catch (e) {
         console.warn(e);
@@ -107,16 +109,58 @@ export namespace M4Match {
     throw new Error("matching error");
   }
 
-  async function getMatchSupply(player: M4Player.PlayerData) {
+
+  export async function fetchMatch(id: string) {
+    const db = FS.getFirestore();
+    const doc = await FS.getDoc(FS.doc(db, FSUtil.Collection.ColClosed, id));
+    
+    const playerYou: M4Player.PlayerData = {
+      id: doc.get("registerer_id")!,
+      name: doc.get("registerer_name")!,
+    };
+    const playerOpponent: M4Player.PlayerData = {
+      id: doc.get("opponent_id")!,
+      name: doc.get("opponent_name")!,
+    };
+    return Game.initPVPGame(
+      doc.id,
+      playerYou,
+      playerOpponent,
+      true,
+      true,
+    );
+  }
+
+  async function getMatchSupply(
+    player: M4Player.PlayerData,
+    openDoc: FS.QueryDocumentSnapshot<FS.DocumentData> | undefined,
+  ) {
     const db = FS.getFirestore();
     // [ドキュメントがない場合]
     console.log("no opened doc");
     // `match_opened`にドキュメントを作成し、listenする。
     let opponent_id: string | null = null;
-    const matchOpened = makeOpenedMatch(player);
-    const matchOpenedRef = await FS.addDoc(FS.collection(db, FSUtil.Collection.ColOpened), matchOpened);
+    const { match: matchOpened, ref: matchOpenedRef } = await (async () => {
+      if (openDoc) {
+        const r = Util.u_datify_fields(openDoc.data()!);
+        const match: MatchOpened = {
+          created_at: r.created_at,
+          registerer_id: r.registerer_id,
+          registerer_name: player.name,
+          expires_at: new Date(Date.now() + Prolong),
+        };
+        await FS.updateDoc(openDoc.ref, match);
+        return {
+          match,
+          ref: openDoc.ref,
+        };
+      } else {
+        const match = makeOpenedMatch(player);
+        const ref = await FS.addDoc(FS.collection(db, FSUtil.Collection.ColOpened), match);
+        return { match, ref };
+      }
+    })();
     console.log(`made opened doc: ${matchOpenedRef.id}`);
-
 
     const matchClosed = await FSUtil.askFirstUpdate(
       matchOpenedRef,
@@ -156,7 +200,7 @@ export namespace M4Match {
     await FS.deleteDoc(matchOpenedRef);
     
     // 5. ゲーム開始
-    return Game.init2pGame(
+    return Game.initPVPGame(
       matchClosedRef.id,
       player,
       {
@@ -164,46 +208,86 @@ export namespace M4Match {
         name: opponent_name!
       },
       true,
+      false,
     );
   }
 
   async function getMatchDemand(player: M4Player.PlayerData, openedDoc: FS.QueryDocumentSnapshot<FS.DocumentData>) {
-      // [ドキュメントがある場合]
-      const db = FS.getFirestore();
-      console.log(`found opened doc: ${openedDoc.id}`);
+    // [ドキュメントがある場合]
+    const db = FS.getFirestore();
+    console.log(`found opened doc: ${openedDoc.id}`);
 
-      // 1. `match_opened`ドキュメントに対して自分のIDを書き込む。
-      await FS.updateDoc(openedDoc.ref, { opponent_id: player.id, opponent_name: player.name });
-      // 2. `match_opened`ドキュメントをlisten
-      const closed_match_id = await FSUtil.askFirstUpdate(
-        openedDoc.ref,
-        (snapshot) => {
-          if (!snapshot.exists) { return "reject"; }
-          const closed_match_id = snapshot.get("closed_match_id");
-          if (!closed_match_id) { return "ignore"; }
-          return "accept";
-        },
-        (snapshot) => snapshot.get("closed_match_id")!,
-        { timeout: TimeOut },
-        );
-      // 3. `match_opened`ドキュメントの`closed_match_id`に値が入ったら、対応する`match_closed`ドキュメントを見に行く。
-      console.log(`receipt match id: ${closed_match_id}`);
-
-      // 5. `match_closed`ドキュメントの`opponent_id`が自分と同じだったら、ゲーム開始
-      const closedMatch = await FS.getDoc(FS.doc(db, FSUtil.Collection.ColClosed, closed_match_id));
-      const { registerer_id, registerer_name, opponent_id } = closedMatch.data() || {};
-      if (!registerer_id || !opponent_id || opponent_id !== player.id) {
-        console.log("failed to match up");
-        return null;
-      }
-      return Game.init2pGame(
-        closedMatch.id,
-        player,
-        {
-          id: registerer_id!,
-          name: registerer_name || "",
-        },
-        false,
+    // 1. `match_opened`ドキュメントに対して自分のIDを書き込む。
+    await FS.updateDoc(openedDoc.ref, { opponent_id: player.id, opponent_name: player.name });
+    // 2. `match_opened`ドキュメントをlisten
+    const closed_match_id = await FSUtil.askFirstUpdate(
+      openedDoc.ref,
+      (snapshot) => {
+        if (!snapshot.exists) { return "reject"; }
+        const closed_match_id = snapshot.get("closed_match_id");
+        if (!closed_match_id) { return "ignore"; }
+        return "accept";
+      },
+      (snapshot) => snapshot.get("closed_match_id")!,
+      { timeout: TimeOut },
       );
+    // 3. `match_opened`ドキュメントの`closed_match_id`に値が入ったら、対応する`match_closed`ドキュメントを見に行く。
+    console.log(`receipt match id: ${closed_match_id}`);
+
+    // 5. `match_closed`ドキュメントの`opponent_id`が自分と同じだったら、ゲーム開始
+    const closedMatch = await FS.getDoc(FS.doc(db, FSUtil.Collection.ColClosed, closed_match_id));
+    const { registerer_id, registerer_name, opponent_id } = closedMatch.data() || {};
+    if (!registerer_id || !opponent_id || opponent_id !== player.id) {
+      console.log("failed to match up");
+      return null;
+    }
+    return Game.initPVPGame(
+      closedMatch.id,
+      player,
+      {
+        id: registerer_id!,
+        name: registerer_name || "",
+      },
+      false,
+      false,
+    );
+  }
+
+  export async function listGames(
+    receiver: (games: Game.Game[]) => void,
+  ) {
+    const db = FS.getFirestore();
+    const q = FS.query(
+      FS.collection(db, FSUtil.Collection.ColClosed),
+      FS.orderBy("expires_at", "desc"),
+    );
+    FS.onSnapshot(q, {
+      next: (snapshot) => {
+        const games: Game.Game[] = snapshot.docs.map(d => {
+          const r: any = Util.u_datify_fields(d.data()!);
+          const playerYou: M4Player.PlayerData = {
+            id: r.registerer_id,
+            name: r.registerer_name || "Someone",
+          };
+          const playerOpponent: M4Player.PlayerData = {
+            id: r.opponend_id,
+            name: r.opponent_name || "Someone",
+          };
+          return {
+            match_id: d.id,
+            player_id_you: playerYou.id,
+            player_id_opponent: playerOpponent.id,
+            playerYou,
+            playerOpponent,
+            board: [],
+            player: "You",
+            neutral: true,
+            expires_at: r.expires_at,
+            logs: r.logs,
+          } as any;
+        });
+        receiver(games);
+      },
+    });
   }
 };

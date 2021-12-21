@@ -10,17 +10,22 @@
     v-else
   )
     .title
-      h2 M M M M
+      h1
+        span(:class="mmmm[0]") M 
+        span(:class="mmmm[1]") M 
+        span(:class="mmmm[2]") M 
+        span(:class="mmmm[3]") M
     .enc
       .nickname
         v-text-field(
           :disabled="viewData.state !== 'None'"
-          label="ニックネーム(任意)"
+          label="ニックネーム"
+          hint="2文字以上です"
           v-model="viewData.nickname"
         )
       .go
         v-btn(
-          :disabled="viewData.state !== 'None'"
+          :disabled="!effectiveNickname || viewData.state !== 'None'"
           :loading="viewData.state === 'Matching'"
           @click="handlers.clickMatch"
         ) マッチングする
@@ -37,15 +42,25 @@
       .state(
         v-else-if="viewData.state === 'Matched'"
       ) マッチング完了！
+    .watcher
+      v-btn(
+        @click="handlers.clickWatcher"
+      ) 観戦する
+    .single-play
+      v-btn(
+        :disabled="!effectiveNickname || viewData.state !== 'None'"
+        @click="handlers.clickSinglePlay"
+      ) シングルプレイ
 </template>
 
 <script lang="ts">
-import _ from 'lodash';
+import _, { random } from 'lodash';
 import { reactive, ref, Ref, SetupContext, defineComponent, onMounted, PropType, watch, computed } from '@vue/composition-api';
 import { Game } from '../model/game'
 import { M4Player } from '../model/player'
 import { M4Match } from '../model/match'
 import GameView from '../views/Game.vue'
+import Router from '../router/index'
 
 type MatchingState = "None" | "Matching" | "Matched";
 
@@ -65,7 +80,7 @@ export default defineComponent({
       matchingError: string;
     } = reactive({
       state: "None",
-      nickname: "",
+      nickname: localStorage.getItem("mmmm_nickname") || "",
       game: null,
       matchingError: "",
     });
@@ -73,6 +88,7 @@ export default defineComponent({
     const effectiveNickname = computed(() => {
       const n = viewData.nickname.trim();
       if (!n) { return null; }
+      if (n.length < 2) { return null; }
       return n;
     });
 
@@ -83,6 +99,7 @@ export default defineComponent({
         viewData.matchingError = "";
         try {
           player.name = effectiveNickname.value || "";
+          localStorage.setItem("mmmm_nickname", player.name);
           const game = await M4Match.getMatch(player);
           viewData.game = reactive(game!) as Game.Game;
           viewData.state = "Matched";
@@ -103,17 +120,48 @@ export default defineComponent({
         viewData.game = null;
         viewData.state = "None";
       },
+
+      clickWatcher: () => {
+        Router.push('w');
+      },
+
+      clickSinglePlay: () => {
+        if (effectiveNickname.value) {
+          player.name = effectiveNickname.value || "";
+          localStorage.setItem("mmmm_nickname", player.name);
+        }
+        const opponent = M4Player.publishCom();
+        viewData.game = {
+          match_id: "single-player",
+          player_id_you: player.id,
+          playerYou: player,
+          player_id_opponent: opponent.id,
+          playerOpponent: opponent,
+          player: "You",
+          neutral: false,
+        }
+        viewData.state = "Matched";
+      },
     };
     return {
       player,
       viewData,
+      effectiveNickname,
       handlers,
+      mmmm: (() => {
+        return ["0011", "0101", "1001", "0110", "1010", "1100"][Math.floor(Math.random() * 6)]
+          .split("")
+          .map(s => s === "0" ? "You" : "Opponent");
+      })(),
     };
   },
 });
 </script>
 
 <style lang="stylus" scoped>
+ColorYou = royalblue
+ColorOpponent = orange
+
 .master
   height 100%
   display flex
@@ -131,4 +179,13 @@ export default defineComponent({
       width 24em;
   .error
     color red
+
+  .watcher, .single-play
+    padding 8px
+
+  .You
+    color ColorYou
+  .Opponent
+    color ColorOpponent
+
 </style>
